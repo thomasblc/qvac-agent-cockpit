@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QVAC Cockpit</title>
+<link rel="stylesheet" href="cockpit.css">
+</head>
+<body>
+<div id="shell">
+  <!-- left rail: the six panes (P1 wires Cockpit; the rest are placeholders lighting up per phase) -->
+  <nav id="rail">
+    <div class="rail-logo">Q</div>
+    <button class="rail-btn active" data-pane="cockpit" title="Cockpit">◈</button>
+    <button class="rail-btn" data-pane="mission" title="Mission Control (P3)">▤</button>
+    <button class="rail-btn" data-pane="brain" title="Second Brain (P4)">⌬</button>
+    <button class="rail-btn" data-pane="files" title="Files (P4)">≡</button>
+    <button class="rail-btn" data-pane="schedule" title="Schedule (P5)">◷</button>
+    <button class="rail-btn" data-pane="skills" title="Skills (P5)">✦</button>
+    <div class="rail-spacer"></div>
+    <div id="serve-dot" class="rail-dot" title="serve state"></div>
+  </nav>
+
+  <main id="main">
+    <!-- L1 status line: verb + target + elapsed, always visible -->
+    <header id="statusbar">
+      <span id="status-verb">BOOTING</span>
+      <span id="status-target"></span>
+      <span id="status-elapsed"></span>
+      <span class="status-right">
+        <span id="chip-sovereign" class="hud-chip" title="substrate egress (your prompts + model)">egress: monitoring...</span>
+        <span id="chip-xp" class="hud-chip" title="local activity">0 missions</span>
+        <select id="model-pick2" title="local model"></select>
+        <select id="theme-pick" title="theme"><option value="">HUD</option><option value="paper">Paper</option><option value="terminal">Terminal</option></select>
+        <span id="agent-name">no agent</span>
+      </span>
+    </header>
+
+    <section id="pane-cockpit" class="pane active">
+      <div id="orb-wrap"><canvas id="orb-canvas"></canvas></div>
+      <div id="transcript"></div>
+      <div id="input-row">
+        <textarea id="input" rows="1" placeholder="Ask your agent... (Enter to send)"></textarea>
+        <button id="send" title="send">↑</button>
+      </div>
+    </section>
+    <section id="pane-mission" class="pane">
+      <div id="mission-cols">
+        <div class="mcol"><h3>PLANNED</h3><div id="lane-planned" class="lane"></div></div>
+        <div class="mcol"><h3>NOW</h3><div id="lane-now" class="lane"></div></div>
+        <div class="mcol"><h3>DONE</h3><div id="lane-done" class="lane"></div></div>
+        <div class="mcol needs">
+          <h3>NEEDS YOU</h3><div id="lane-needs" class="lane"></div>
+          <h3>SWARM</h3><div id="lane-kanban" class="lane"></div>
+          <h3>HISTORY <input id="hist-q" placeholder="search transcripts"></h3><div id="lane-history" class="lane"></div>
+        </div>
+      </div>
+    </section>
+    <section id="pane-brain" class="pane">
+      <div id="brain-bar">
+        <button id="brain-index-btn">Index corpus</button>
+        <button id="brain-scan-btn">Scan for missing links</button>
+        <select id="brain-lens"><option value="">All docs</option><option value="orphans">Orphans</option><option value="stale">Stale (30d)</option></select>
+        <span id="brain-status"></span>
+      </div>
+      <div id="brain-split">
+        <canvas id="brain-canvas"></canvas>
+        <div id="brain-side"><h3>PROPOSED LINKS</h3><div id="brain-proposals" class="lane"></div></div>
+      </div>
+    </section>
+    <section id="pane-files" class="pane">
+      <div id="files-split">
+        <div id="files-list"></div>
+        <div id="files-editor">
+          <div id="files-banner"></div>
+          <div id="files-panes"><textarea id="files-text" spellcheck="false"></textarea><div id="files-preview"></div></div>
+        </div>
+      </div>
+    </section>
+    <section id="pane-schedule" class="pane">
+      <div id="sched-banner"></div>
+      <div id="sched-list"></div>
+    </section>
+    <section id="pane-skills" class="pane"><div id="skills-grid"></div></section>
+    <section id="pane-other" class="pane"><div class="placeholder">This pane lands in a later phase.</div></section>
+  </main>
+</div>
+<script type="module" src="app.js"></script>
+<script type="module" src="panes.js"></script>
+</body>
+</html>

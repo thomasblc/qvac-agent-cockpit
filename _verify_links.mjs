@@ -1,0 +1,17 @@
+import { insertRelatedSection as f } from "./server/links.js";
+let pass = 0, fail = 0;
+const t = (name, ok) => { ok ? pass++ : fail++; console.log((ok ? "  PASS " : "  FAIL ") + name); };
+const fence = "# Note\n```md\n## Related\n- [[Example]]\n```\n";
+const r1 = f(fence, "[[Foo]]");
+t("code-fence heading not hijacked", r1.includes("```md\n## Related\n- [[Example]]\n```") && /\n## Related\n- \[\[Foo\]\]\n$/.test(r1));
+const r2 = f("## Related\n- [[Bar]]\n", "[[Foo]]");
+t("start-of-file matched, no dup", (r2.match(/## Related/g) || []).length === 1 && r2.includes("- [[Foo]]"));
+const r3 = f("## Relatedness of things\nbody\n", "[[Foo]]");
+t("prefix heading not hijacked", r3.startsWith("## Relatedness of things\nbody\n") && r3.includes("\n## Related\n- [[Foo]]"));
+t("inserts under real section", /## Related\n- \[\[Foo\]\]\n- \[\[Bar\]\]/.test(f("# N\nb\n\n## Related\n- [[Bar]]\n", "[[Foo]]")));
+t("dedup unchanged", f("x [[Foo]] y", "[[Foo]]") === "x [[Foo]] y");
+t("plain note appends", f("# N\nbody", "[[Foo]]") === "# N\nbody\n\n## Related\n- [[Foo]]\n");
+const r7 = f("# Note\r\n## Related\r\n- [[Bar]]\r\n", "[[Foo]]");
+t("CRLF heading reused", (r7.match(/## Related/g) || []).length === 1);
+console.log(`${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

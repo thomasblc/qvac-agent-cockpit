@@ -1,0 +1,16 @@
+import WebSocket from "ws";
+const ws = new WebSocket("ws://localhost:8150");
+let nextId = 1; const pending = new Map();
+const rpc = (type, extra = {}) => new Promise((res) => { const id = nextId++; pending.set(id, res); ws.send(JSON.stringify({ id, type, ...extra })); });
+await new Promise((r) => ws.on("open", r));
+ws.on("message", (b, bin) => { if (bin) return; let m; try { m = JSON.parse(b.toString()); } catch { return; } if (m.id !== undefined && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
+const sk = await rpc("skills.list", {});
+const skills = sk.data?.skills || [];
+const withUsage = skills.filter((s) => s.useCount > 0).length;
+console.log("skills:", skills.length, "| categories:", new Set(skills.map((s) => s.category)).size, "| with usage:", withUsage);
+console.log("top:", skills.slice(0, 3).map((s) => `${s.name}(${s.useCount})`).join(", "));
+const cr = await rpc("cron.list", {});
+console.log("cron jobs:", cr.data?.jobs?.length, "| ticker alive:", cr.data?.ticker?.alive, "age", cr.data?.ticker?.ageS + "s");
+const pass = sk.ok && skills.length >= 50 && skills.every((s) => typeof s.name === "string") && cr.ok && cr.data.ticker !== undefined;
+console.log(pass ? "P5 GATE PASS (server side; cron round-trip pending a real job)" : "P5 GATE FAIL");
+ws.close(); process.exit(pass ? 0 : 1);

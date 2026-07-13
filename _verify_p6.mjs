@@ -1,0 +1,23 @@
+import WebSocket from "ws";
+const ws = new WebSocket("ws://localhost:8150");
+let nextId = 1; const pending = new Map();
+const rpc = (t, e = {}) => new Promise((res) => { const i = nextId++; pending.set(i, res); ws.send(JSON.stringify({ id: i, type: t, ...e })); });
+let gamifyFrame = null;
+await new Promise((r) => ws.on("open", r));
+ws.on("message", (b, bin) => { if (bin) return; let m; try { m = JSON.parse(b.toString()); } catch { return; } if (m.id !== undefined && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } if (m.type === "gamify") gamifyFrame = m; });
+const setup = await rpc("setup.detect", {});
+console.log("setup detect: hermes =", setup.data?.hermes, "| model =", setup.data?.model);
+const gam = await rpc("gamify", {});
+console.log("gamify: missions =", gam.data?.counters?.missions, "| achievements defined =", gam.data?.achievements?.length);
+const eg = await rpc("egress", {});
+const sub = eg.data?.substrate || {};
+console.log("egress substrate:", sub.unavailable ? `${sub.pids} pids (nettop parse unavailable)` : `${sub.bytes} bytes, ${sub.pids} pids`, "| agent web lane:", eg.data?.agentWeb?.pids, "pids");
+// a real turn should bump missions + emit gamify
+const before = gam.data?.counters?.missions || 0;
+const turn = await rpc("chat", { text: "Reply with just: p6 ok" });
+await new Promise((r) => setTimeout(r, 1500));
+const after = (await rpc("gamify", {})).data?.counters?.missions || 0;
+console.log("turn:", turn.ok, "| missions", before, "->", after, "| gamify frame:", !!gamifyFrame);
+const pass = setup.data?.hermes === true && (gam.data?.achievements?.length >= 5) && eg.ok && (eg.data?.substrate !== undefined) && after > before && !!gamifyFrame;
+console.log(pass ? "P6 GATE PASS" : "P6 GATE FAIL");
+ws.close(); process.exit(pass ? 0 : 1);
