@@ -5,12 +5,31 @@
 // the on-disk shapes. OpenClaw has no kanban board or cron scheduler, so those panes report an
 // honest "not available for this harness" rather than an error.
 import { execFile } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { underRoot } from "./safe-path.js";
 
 const H = homedir();
 const SESS_DIR = join(H, ".openclaw/agents/main/sessions");
+const MAX_TRAJECTORY = 8 * 1024 * 1024; // cap the on-disk read; a runaway agent's .jsonl can be huge
+
+// A session id must be a bare file-stem: no separators, no traversal. It reaches us straight off the
+// WS client (history.view) AND from OpenClaw's own on-disk session keys (a compromised agent could
+// plant a `../`-laden key), so both callers must sanitize before building a path. Defense in depth:
+// reject the id, then confirm the resolved path is still under SESS_DIR via the shared jail.
+function sessionFile(sessionId) {
+  const id = String(sessionId || "");
+  if (!id || id.includes("/") || id.includes("\\") || id.includes("..") || id.includes("\0")) return null;
+  const abs = resolve(SESS_DIR, `${id}.jsonl`);
+  if (!underRoot(abs, [SESS_DIR])) return null;
+  return abs;
+}
+// Read a trajectory file, bounded (never pull a multi-hundred-MB .jsonl fully into memory).
+function readTrajectory(abs) {
+  try { if (statSync(abs).size > MAX_TRAJECTORY) return readFileSync(abs, "utf8").slice(0, MAX_TRAJECTORY); } catch { return null; }
+  try { return readFileSync(abs, "utf8"); } catch { return null; }
+}
 
 // Resolve the openclaw binary once (PATH lookup is done by execFile with shell off, so pass a name).
 const OC = process.env.OPENCLAW_BIN || "openclaw";
@@ -66,9 +85,10 @@ export async function searchMessages(q, { limit = 30 } = {}) {
   const hits = [];
   for (const s of sessions) {
     if (hits.length >= limit) break;
-    const jl = join(SESS_DIR, `${s.id}.jsonl`);
-    if (!existsSync(jl)) continue;
-    let text; try { text = readFileSync(jl, "utf8"); } catch { continue; }
+    const jl = sessionFile(s.id);
+    if (!jl || !existsSync(jl)) continue;
+    const text = readTrajectory(jl);
+    if (!text) continue;
     for (const line of text.split("\n")) {
       if (hits.length >= limit) break;
       const low = line.toLowerCase();
@@ -101,9 +121,10 @@ function extractText(ev) {
 // Read a past session transcript from its on-disk JSONL trajectory (no ACP session/load, which would
 // hijack the live session). Maps trajectory events to the {role, content, tool_name, timestamp} shape.
 export function viewSession(sessionId /*, profile */) {
-  const jl = join(SESS_DIR, `${sessionId}.jsonl`);
-  if (!existsSync(jl)) return { messages: [] };
-  let text; try { text = readFileSync(jl, "utf8"); } catch { return { messages: [] }; }
+  const jl = sessionFile(sessionId);
+  if (!jl || !existsSync(jl)) return { messages: [] };
+  const text = readTrajectory(jl);
+  if (!text) return { messages: [] };
   const messages = [];
   for (const line of text.split("\n")) {
     if (!line.trim() || messages.length >= 400) continue;
