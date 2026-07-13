@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 (2026-07-13)
+- OpenClaw is now a first-class second harness, driven end to end: ACP connect + text turn + tool-call turn (real file write) + a full turn in the cockpit UI, all on a local QVAC model. Approving the device (`openclaw devices approve`) unblocks the Gateway-backed ACP bridge.
+- Store panes wired for OpenClaw: History (sessions) and Skills read through the OpenClaw CLI (`sessions list --json`, `skills list --json`), version-robust. OpenClaw has no Kanban/Cron store, so those panes report an honest "not available for this harness" instead of erroring.
+- Per-harness capability badges in the header (the last external-audit item, P1-01): show what the connected harness exposes over ACP (session replay / plan / permission gating) and which store panes it backs. Honest tri-state (on / off / unknown).
+- Fix: `history.js` `viewSession` referenced an out-of-scope `H` (would ReferenceError on any past-session view under Hermes).
+- Default serve config is now bundled at `config/qvac.serve.config.json` (repo-relative), replacing a hardcoded absolute path.
+
 ## 1.0.0 (2026-07-13)
 - Initial public release: six panes (Cockpit, Mission Control, Second Brain, Files, Schedule, Skills), ACP client for Hermes/OpenClaw, supervised `qvac serve openai`, gamified voice-native HUD.
 - OpenClaw model connection moved to the native `@qvac/openclaw-plugin` (QVAC SDK 0.15+), replacing the hand-wired OpenAI-endpoint base_url. Verified end-to-end (`openclaw agent --local` smoke test, `finalAssistantVisibleText: "pong"`, `provider: "qvac"`, `fallbackUsed: false`).

@@ -150,6 +150,12 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 /* status-bar HUD extras (gamify + egress + theme + model picker) */
 .hud-chip { font: 10.5px var(--mono); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: default; }
 .hud-chip.live { color: var(--live); border-color: rgba(22,227,193,0.35); }
+/* per-harness capability badges (feature parity, honest tri-state) */
+.cap-badges { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.cap-badge { font: 9px var(--mono); text-transform: uppercase; letter-spacing: 0.03em; border-radius: 4px; padding: 1px 5px; border: 1px solid var(--line); cursor: default; }
+.cap-badge.cap-on { color: var(--live); border-color: rgba(22,227,193,0.4); background: var(--live-soft); }
+.cap-badge.cap-off { color: var(--dim); border-color: var(--line); opacity: 0.55; text-decoration: line-through; }
+.cap-badge.cap-unknown { color: var(--mut); border-style: dashed; }
 #theme-pick, #model-pick2 { background: var(--elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); font: 10.5px var(--mono); padding: 1px 6px; cursor: pointer; }
 
 /* history viewer modal */

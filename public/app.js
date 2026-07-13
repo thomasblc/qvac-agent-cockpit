@@ -33,6 +33,33 @@ function setStatus(verb, target) {
   $("status-verb").textContent = verb;
   $("status-target").textContent = target || "";
 }
+// Capability badges: what the connected harness actually exposes over ACP (loadSession/plan/
+// permission) + which store panes it backs. A null capability = the harness advertised nothing;
+// observed events fill it in, so we show "?" rather than claiming absence. Honest feature parity.
+function renderCaps(harness, caps, storeCaps) {
+  const el = $("agent-caps");
+  if (!el || !harness) return;
+  const badges = [];
+  const tri = (v) => (v === true ? "on" : v === false ? "off" : "unknown");
+  if (caps) {
+    badges.push(["replay", caps.loadSession, "session replay (session/load)"]);
+    badges.push(["plan", caps.plan, "streams a plan"]);
+    badges.push(["gated", caps.permission, "asks permission before tools"]);
+  }
+  if (storeCaps) {
+    for (const [k, label] of [["history", "history"], ["skills", "skills"], ["kanban", "kanban"], ["cron", "cron"]]) {
+      badges.push([label, storeCaps[k], `${label} store`]);
+    }
+  }
+  el.textContent = "";
+  for (const [label, val, title] of badges) {
+    const b = document.createElement("span");
+    b.className = "cap-badge cap-" + tri(val);
+    b.textContent = label;
+    b.title = title + ": " + tri(val);
+    el.appendChild(b);
+  }
+}
 function startElapsed() {
   stopElapsed();
   elapsedTimer = setInterval(() => { $("status-elapsed").textContent = ((Date.now() - turnStart) / 1000).toFixed(0) + "s"; }, 1000);
@@ -93,13 +120,14 @@ function onMessage(ev) {
     case "hello":
       $("model-name").textContent = m.model || "";
       if (m.agent?.name) $("agent-name").textContent = m.agent.name;
+      renderCaps(m.harness, m.capabilities, m.storeCaps);
       setServeDot(m.serveState);
       setStatus("STANDBY", "");
       orb.setState("standby");
       break;
     case "serveState": setServeDot(m.state); break;
     case "agentState":
-      if (m.state === "ready") { $("agent-name").textContent = m.agent?.name || "agent"; }
+      if (m.state === "ready") { $("agent-name").textContent = m.agent?.name || "agent"; renderCaps(m.harness, m.capabilities, m.storeCaps); }
       else if (m.state === "down") { setStatus("AGENT DOWN", "restarting on next message"); orb.setState("standby"); }
       break;
     case "turnStart":
@@ -261,6 +289,7 @@ async function loadHistory(q) {
   const lane = $("lane-history");
   lane.textContent = "";
   const r = q ? await rpc("history.search", { q }) : await rpc("history.list", {});
+  if (r.data?.unavailable) { const el = document.createElement("div"); el.className = "hist-row"; el.textContent = r.data.reason || "history not available for this harness"; lane.appendChild(el); return; }
   const rows = q ? (r.data?.hits || []) : (r.data?.sessions || []);
   for (const s of rows.slice(0, 40)) {
     const el = document.createElement("div");

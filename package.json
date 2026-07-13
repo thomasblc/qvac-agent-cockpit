@@ -1,6 +1,6 @@
 {
   "name": "qvac-agent-cockpit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A styled, gamified, voice-native HUD that plugs onto an AI agent harness you already run (Hermes, OpenClaw), on local QVAC models.",
   "main": "server/server.js",
   "scripts": {
@@ -9,7 +9,16 @@
     "start": "node server/server.js",
     "audit:gates": "node _verify_security.mjs"
   },
-  "keywords": ["qvac", "tether", "local-ai", "agent", "cockpit", "hud", "hermes", "openclaw"],
+  "keywords": [
+    "qvac",
+    "tether",
+    "local-ai",
+    "agent",
+    "cockpit",
+    "hud",
+    "hermes",
+    "openclaw"
+  ],
   "author": "Thomas Blanc",
   "license": "MIT",
   "type": "module",

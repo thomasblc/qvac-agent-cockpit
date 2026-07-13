@@ -16,24 +16,38 @@ import { decideLanguage } from "./lang-id.js";
 import { createWavHeader, int16ArrayToBuffer } from "./audio-utils.js";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { listSessions, searchMessages, sessionTree, viewSession } from "./history.js";
+import * as hermesHistory from "./history.js";
 import { readBoard, KanbanWatcher, kanbanAvailable } from "./kanban.js";
 import { indexCorpus, buildGraph, scanLinks, acceptLink } from "./brain.js";
 import { listFiles, readFileById, writeFileById, markReviewed, revertToReviewed, counters, bump } from "./files.js";
 import { jobsWithSummaries, tickerAlive, cronAction } from "./cron.js";
-import { listSkills } from "./skills.js";
+import { listSkills as hermesListSkills } from "./skills.js";
+import * as openclawStores from "./stores-openclaw.js";
 import { recordMission, snapshot as gamifySnapshot } from "./gamify.js";
 import { sample as egressSample } from "./egress.js";
 import { detectHarnesses, explainPlan } from "./onboard.js";
 
 // Which harness the cockpit drives. Default hermes; COCKPIT_HARNESS=openclaw to switch.
-// Store panes (history/kanban/cron/skills) currently read ~/.hermes, so they are gated to hermes.
 const HARNESS = process.env.COCKPIT_HARNESS || "hermes";
 const HARNESS_CMD = {
   hermes: { bin: process.env.HOME + "/.local/bin/hermes", acpArgs: ["acp"] },
   openclaw: { bin: "openclaw", acpArgs: ["acp"] },
 };
 const HERMES_STORES = HARNESS === "hermes";
+
+// Per-harness store capabilities. Hermes has all four store panes; OpenClaw exposes sessions +
+// skills (via its CLI) but has no kanban board or cron scheduler, so those two panes report an
+// honest "not available for this harness" instead of erroring. history/skills are always await-safe
+// (the OpenClaw adapter returns promises; the Hermes modules return values -> Promise.resolve wraps).
+const STORE_CAPS = {
+  hermes: { history: true, skills: true, kanban: true, cron: true },
+  openclaw: { history: true, skills: true, kanban: false, cron: false },
+};
+const caps = STORE_CAPS[HARNESS] || STORE_CAPS.hermes;
+const STORES = HARNESS === "openclaw"
+  ? { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills }
+  : { listSessions: hermesHistory.listSessions, searchMessages: hermesHistory.searchMessages, sessionTree: hermesHistory.sessionTree, viewSession: hermesHistory.viewSession, listSkills: hermesListSkills };
+const unavailable = (pane) => ({ unavailable: true, harness: HARNESS, reason: `${pane} is not available for ${HARNESS}: this harness does not have that store.` });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8150);
@@ -122,7 +136,7 @@ async function ensureAcp() {
     acp.on("stderr", () => { /* logged by hermes itself */ });
     const info = await acp.connect();
     if (prevSession && info.sessionId !== prevSession) broadcast({ type: "contextReset", message: "new agent session (previous context lost)" });
-    broadcast({ type: "agentState", state: "ready", agent: info.agent, sessionId: info.sessionId, harness: HARNESS, capabilities: acp.capabilities, hermesStores: HERMES_STORES });
+    broadcast({ type: "agentState", state: "ready", agent: info.agent, sessionId: info.sessionId, harness: HARNESS, capabilities: acp.capabilities, hermesStores: HERMES_STORES, storeCaps: caps });
     return acp;
   })().finally(() => { connecting = null; });
   return connecting;
@@ -187,7 +201,7 @@ async function speakFinal(userText, finalText) {
 wss.on("connection", (ws) => {
   clients.add(ws);
   ws.on("close", () => clients.delete(ws));
-  send(ws, { type: "hello", workspace: WORKSPACE, serveState: serve.state, agent: acp?.agentInfo || null, model: serve.model, harness: HARNESS, capabilities: acp?.capabilities || null, hermesStores: HERMES_STORES });
+  send(ws, { type: "hello", workspace: WORKSPACE, serveState: serve.state, agent: acp?.agentInfo || null, model: serve.model, harness: HARNESS, capabilities: acp?.capabilities || null, hermesStores: HERMES_STORES, storeCaps: caps });
   ws.on("message", async (buf, isBinary) => {
     if (isBinary) {
       // one utterance per frame (push-to-talk release sends the whole recording)
@@ -220,17 +234,20 @@ wss.on("connection", (ws) => {
         const r = pendingPerms.get(msg.permId);
         if (r) { pendingPerms.delete(msg.permId); broadcast({ type: "needsYouResolved", permId: msg.permId, optionId: msg.optionId }); r(msg.optionId || null); }
         reply(true, {});
-      } else if (["history.list","history.search","history.tree","history.view","kanban.board","cron.list","cron.action","skills.list"].includes(msg.type) && !HERMES_STORES) {
-        reply(false, null, `store panes are wired for Hermes only (current harness: ${HARNESS})`);
       } else if (msg.type === "history.list") {
-        reply(true, { sessions: listSessions({ limit: msg.limit || 60 }) });
+        if (!caps.history) return reply(true, unavailable("session history"));
+        reply(true, { sessions: await STORES.listSessions({ limit: msg.limit || 60 }) });
       } else if (msg.type === "history.search") {
-        reply(true, { hits: searchMessages(msg.q, { limit: 30 }) });
+        if (!caps.history) return reply(true, unavailable("session history"));
+        reply(true, { hits: await STORES.searchMessages(msg.q, { limit: 30 }) });
       } else if (msg.type === "history.tree") {
-        reply(true, { roots: sessionTree({}) });
+        if (!caps.history) return reply(true, unavailable("session history"));
+        reply(true, { roots: await STORES.sessionTree({}) });
       } else if (msg.type === "history.view") {
-        reply(true, viewSession(msg.sessionId, msg.profile || "main"));
+        if (!caps.history) return reply(true, unavailable("session history"));
+        reply(true, await STORES.viewSession(msg.sessionId, msg.profile || "main"));
       } else if (msg.type === "kanban.board") {
+        if (!caps.kanban) return reply(true, unavailable("a kanban board"));
         reply(true, readBoard());
       } else if (msg.type === "brain.index") {
         reply(true, await indexCorpus(WORKSPACE, (f) => send(ws, f)));
@@ -253,11 +270,14 @@ wss.on("connection", (ws) => {
       } else if (msg.type === "files.revert") {
         reply(true, revertToReviewed(msg.fileId, WORKSPACE, msg.knownHash));
       } else if (msg.type === "cron.list") {
+        if (!caps.cron) return reply(true, unavailable("a cron scheduler"));
         reply(true, { jobs: await jobsWithSummaries({ serveBase: serve.base(), model: serve.model }), ticker: tickerAlive() });
       } else if (msg.type === "cron.action") {
+        if (!caps.cron) return reply(true, unavailable("a cron scheduler"));
         reply(true, await cronAction(msg.verb, msg.jobId, msg.profile));
       } else if (msg.type === "skills.list") {
-        reply(true, { skills: listSkills() });
+        if (!caps.skills) return reply(true, unavailable("a skills catalog"));
+        reply(true, { skills: await STORES.listSkills() });
       } else if (msg.type === "gamify") {
         reply(true, gamifySnapshot());
       } else if (msg.type === "egress") {

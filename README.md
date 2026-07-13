@@ -24,10 +24,22 @@ serve coexistence, and store access before the six panes were built).
 - **QVAC SDK 0.14.x in-process** for voice + embeddings + (P7) images. One machine, one worker, proven to coexist with the serve.
 
 ## Multi-harness status (verified 2026-07-13)
-| Harness | ACP bridge (mission control) | Model connection | Driven E2E by the cockpit | Notes |
+| Harness | ACP bridge (mission control) | Model connection | Store panes | Driven E2E by the cockpit |
 |---|---|---|---|---|
-| **Hermes** | `hermes acp`, standalone | `qvac serve openai` at `base_url` | **Yes** (all gates green) | The proven primary plug. |
-| **OpenClaw** | `openclaw acp`, proxies the OpenClaw **Gateway** | **`@qvac/openclaw-plugin`** (native `qvac` provider) | Model connection verified (`openclaw agent --local` smoke test); mission-control ACP needs a paired device | The ACP bridge needs (1) `openclaw gateway` running and (2) this device paired with `operator.admin` scope (one-time `openclaw onboard`), else it exits 1 with `scope upgrade pending approval`. The cockpit surfaces this as an actionable hint (`AcpClient.hintFor`) instead of a bare "acp exited 1", and onboarding reports `gatewayUp` + a plug note. Not a cockpit bug: OpenClaw's own device-pairing security boundary. |
+| **Hermes** | `hermes acp`, standalone | `qvac serve openai` at `base_url` | History, Skills, Kanban, Cron (all four) | **Yes** (all gates green) |
+| **OpenClaw** | `openclaw acp`, proxies the OpenClaw **Gateway** | **`@qvac/openclaw-plugin`** (native `qvac` provider) | History + Skills (via the OpenClaw CLI); no Kanban/Cron store (honest "not available") | **Yes**: connect + text turn + tool-call turn (real file write) + a full turn in the cockpit UI, all on a local QVAC model |
+
+Both harnesses are now driven end to end. For OpenClaw the ACP mission-control bridge is a thin
+proxy to the OpenClaw **Gateway**, so it needs (1) `openclaw gateway` running and (2) this device
+paired with `operator.admin` scope (one-time `openclaw devices approve` / `openclaw onboard`), else
+it exits with `scope upgrade pending approval`. The cockpit surfaces that as an actionable hint
+(`AcpClient.hintFor`) and onboarding reports `gatewayUp`; it is OpenClaw's own device-pairing
+security boundary, not a cockpit bug. OpenClaw's tool permissions are config-driven (`tools.allow`),
+so it only emits an ACP permission request (the "Needs You" queue) when a tool is not pre-authorized.
+
+Per-harness capability badges in the header show, honestly, what the connected harness exposes
+(session replay / plan / permission gating over ACP, plus which store panes it backs). Panes a
+harness does not have report "not available for this harness" rather than an error.
 
 Pi (pi.dev) is intentionally out of scope: no ACP bridge or native structured-event stream is
 verified against a real local binary, so there is nothing yet for the cockpit to front-end.
@@ -71,6 +83,7 @@ harness's own timeout). `npm run audit:gates` is pure/mocked and safe to run any
 
 ## Status
 V1 complete (all six panes built and gated) + a full external-audit fix-pack applied (4 P0 + 8 P1
-findings, all fixed and re-gated except UI capability badges for harness feature parity, still
-partial). OpenClaw model connection moved to the native `@qvac/openclaw-plugin` (SDK 0.15). Pi
-dropped from scope. See `CHANGELOG.md`.
+findings, all fixed and re-gated, including the UI capability badges). OpenClaw is now a first-class
+second harness: model connection via the native `@qvac/openclaw-plugin` (SDK 0.15), mission-control
+ACP driven end to end, and History + Skills store panes wired through the OpenClaw CLI. Pi dropped
+from scope. See `CHANGELOG.md`.

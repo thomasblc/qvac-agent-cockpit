@@ -5,6 +5,17 @@ import { renderMarkdown } from "./md.js";
 const $ = (id) => document.getElementById(id);
 const { rpc, onFrame } = window.cockpit; // exposed by app.js
 
+// Some store panes don't exist for every harness (OpenClaw has no kanban/cron). The server replies
+// {ok:true, data:{unavailable:true, reason}} for those; render an honest placeholder, not an error.
+function renderUnavailable(container, data) {
+  container.textContent = "";
+  const d = document.createElement("div");
+  d.className = "placeholder";
+  d.style.minHeight = "120px";
+  d.textContent = data?.reason || "Not available for this harness.";
+  container.appendChild(d);
+}
+
 // ---------- pane routing (replaces app.js's placeholder routing) ----------
 const PANES = ["cockpit", "mission", "brain", "files", "schedule", "skills"];
 document.querySelectorAll(".rail-btn").forEach((b) => {
@@ -147,6 +158,7 @@ $("files-text").addEventListener("input", () => {
 // ---------- SCHEDULE ----------
 async function openSchedule() {
   const r = await rpc("cron.list", {});
+  if (r.data?.unavailable) { $("sched-banner").textContent = ""; $("sched-banner").className = ""; renderUnavailable($("sched-list"), r.data); return; }
   const banner = $("sched-banner");
   const t = r.data?.ticker || {};
   banner.textContent = t.alive ? `scheduler alive (heartbeat ${t.ageS}s ago)` : "SCHEDULER DOWN: jobs will not fire (start hermes gateway)";
@@ -185,6 +197,7 @@ async function openSkills() {
   const grid = $("skills-grid");
   grid.textContent = "";
   const r = await rpc("skills.list", {});
+  if (r.data?.unavailable) { renderUnavailable(grid, r.data); return; }
   for (const s of (r.data?.skills || [])) {
     const card = document.createElement("div");
     card.className = "skill-card";

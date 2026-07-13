@@ -5,8 +5,9 @@ import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+const H = homedir();
+
 function dbPaths() {
-  const H = homedir();
   const out = [{ profile: "main", path: join(H, ".hermes/state.db") }];
   const prof = join(H, ".hermes/profiles");
   if (existsSync(prof)) for (const p of readdirSync(prof)) {
