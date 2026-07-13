@@ -5,7 +5,7 @@
 // the on-disk shapes. OpenClaw has no kanban board or cron scheduler, so those panes report an
 // honest "not available for this harness" rather than an error.
 import { execFile } from "node:child_process";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, openSync, readSync, closeSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { underRoot } from "./safe-path.js";
@@ -25,10 +25,18 @@ function sessionFile(sessionId) {
   if (!underRoot(abs, [SESS_DIR])) return null;
   return abs;
 }
-// Read a trajectory file, bounded (never pull a multi-hundred-MB .jsonl fully into memory).
+// Read a trajectory file, TRULY bounded: read at most MAX_TRAJECTORY bytes off the fd so a
+// multi-hundred-MB (or >V8's ~512MB string-limit) .jsonl never gets pulled fully into memory. A
+// truncated final line is harmless: both callers split on "\n" and JSON.parse each line under try.
 function readTrajectory(abs) {
-  try { if (statSync(abs).size > MAX_TRAJECTORY) return readFileSync(abs, "utf8").slice(0, MAX_TRAJECTORY); } catch { return null; }
-  try { return readFileSync(abs, "utf8"); } catch { return null; }
+  let fd = null;
+  try {
+    fd = openSync(abs, "r");
+    const buf = Buffer.allocUnsafe(MAX_TRAJECTORY);
+    const n = readSync(fd, buf, 0, MAX_TRAJECTORY, 0);
+    return buf.toString("utf8", 0, n);
+  } catch { return null; }
+  finally { if (fd !== null) try { closeSync(fd); } catch { /* */ } }
 }
 
 // Resolve the openclaw binary once (PATH lookup is done by execFile with shell off, so pass a name).
