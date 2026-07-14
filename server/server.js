@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { AcpClient } from "./acp-client.js";
 import { ServeManager } from "./serve-manager.js";
+import { GatewayManager } from "./gateway-manager.js";
 import { VoiceEngine, TTS_SAMPLE_RATE } from "./voice-engine.js";
 import { decideLanguage } from "./lang-id.js";
 import { createWavHeader, int16ArrayToBuffer } from "./audio-utils.js";
@@ -27,14 +28,13 @@ import { recordMission, snapshot as gamifySnapshot } from "./gamify.js";
 import { sample as egressSample } from "./egress.js";
 import { detectHarnesses, explainPlan } from "./onboard.js";
 
-// Which harness the cockpit drives. Default hermes; COCKPIT_HARNESS=openclaw to switch.
-const HARNESS = process.env.COCKPIT_HARNESS || "hermes";
+// Which harness the cockpit drives. Runtime-switchable from the Settings panel (harness.set):
+// `harness` + `caps` + `STORES` are recomputed together by applyHarness(); switching drops the
+// current ACP client so the next turn reconnects against the new harness's bridge.
 const HARNESS_CMD = {
   hermes: { bin: process.env.HOME + "/.local/bin/hermes", acpArgs: ["acp"] },
   openclaw: { bin: "openclaw", acpArgs: ["acp"] },
 };
-const HERMES_STORES = HARNESS === "hermes";
-
 // Per-harness store capabilities. Hermes has all four store panes; OpenClaw exposes sessions +
 // skills (via its CLI) but has no kanban board or cron scheduler, so those two panes report an
 // honest "not available for this harness" instead of erroring. history/skills are always await-safe
@@ -43,11 +43,21 @@ const STORE_CAPS = {
   hermes: { history: true, skills: true, kanban: true, cron: true },
   openclaw: { history: true, skills: true, kanban: false, cron: false },
 };
-const caps = STORE_CAPS[HARNESS] || STORE_CAPS.hermes;
-const STORES = HARNESS === "openclaw"
-  ? { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills }
-  : { listSessions: hermesHistory.listSessions, searchMessages: hermesHistory.searchMessages, sessionTree: hermesHistory.sessionTree, viewSession: hermesHistory.viewSession, listSkills: hermesListSkills };
-const unavailable = (pane) => ({ unavailable: true, harness: HARNESS, reason: `${pane} is not available for ${HARNESS}: this harness does not have that store.` });
+const OPENCLAW_STORES = { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills };
+const HERMES_STORES_IMPL = { listSessions: hermesHistory.listSessions, searchMessages: hermesHistory.searchMessages, sessionTree: hermesHistory.sessionTree, viewSession: hermesHistory.viewSession, listSkills: hermesListSkills };
+
+let harness = process.env.COCKPIT_HARNESS || "hermes";
+let caps = STORE_CAPS[harness] || STORE_CAPS.hermes;
+let STORES = harness === "openclaw" ? OPENCLAW_STORES : HERMES_STORES_IMPL;
+let HERMES_STORES = harness === "hermes";
+function applyHarness(h) {
+  if (!HARNESS_CMD[h]) throw new Error("unknown harness " + h);
+  harness = h;
+  caps = STORE_CAPS[h] || STORE_CAPS.hermes;
+  STORES = h === "openclaw" ? OPENCLAW_STORES : HERMES_STORES_IMPL;
+  HERMES_STORES = h === "hermes";
+}
+const unavailable = (pane) => ({ unavailable: true, harness, reason: `${pane} is not available for ${harness}: this harness does not have that store.` });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8150);
@@ -67,8 +77,18 @@ const serve = new ServeManager({
   onState: (s) => broadcast({ type: "serveState", state: s }),
 });
 
+const gateway = new GatewayManager({ port: 18789 }); // OpenClaw Gateway, controlled from Settings
+
 const voice = new VoiceEngine(); // lazy: loads nothing until the first voice use
 const MIC_SAMPLE_RATE = 16000;
+
+// Models the Settings picker offers. All defined in the bundled serve config with tools+static
+// (required for external harnesses), so switching = restart the serve with a different --model alias.
+const MODEL_CHOICES = [
+  { id: "qwen3.5-4b", label: "Qwen3.5 4B (fast, ~4GB)" },
+  { id: "qwen3.5-9b", label: "Qwen3.5 9B (balanced, ~7GB)" },
+  { id: "qwen3.6-moe", label: "Qwen3.6 35B-A3B MoE (best, ~22GB)" },
+];
 
 const clients = new Set();
 function broadcast(obj) { const s = JSON.stringify(obj); for (const ws of clients) if (ws.readyState === 1) ws.send(s); }
@@ -128,15 +148,15 @@ async function ensureAcp() {
   connecting = (async () => {
     try { acp?.stop(); } catch { /* */ } // never leak a half-connected child (review P1-8)
     const prevSession = acp?.sessionId || null;
-    const cmd = HARNESS_CMD[HARNESS] || HARNESS_CMD.hermes;
-    acp = new AcpClient({ ...cmd, harnessId: HARNESS, cwd: WORKSPACE, onEvent: onAcpEvent }); // cwd = workspace (spike lesson)
+    const cmd = HARNESS_CMD[harness] || HARNESS_CMD.hermes;
+    acp = new AcpClient({ ...cmd, harnessId: harness, cwd: WORKSPACE, onEvent: onAcpEvent }); // cwd = workspace (spike lesson)
     acp.setPermissionHandler(askHuman);
     acp.setCancelHook(() => { for (const [permId, r] of pendingPerms) { pendingPerms.delete(permId); broadcast({ type: "needsYouResolved", permId, cancelled: true }); r(null); } });
     acp.on("exit", (code) => broadcast({ type: "agentState", state: "down", code }));
     acp.on("stderr", () => { /* logged by hermes itself */ });
     const info = await acp.connect();
     if (prevSession && info.sessionId !== prevSession) broadcast({ type: "contextReset", message: "new agent session (previous context lost)" });
-    broadcast({ type: "agentState", state: "ready", agent: info.agent, sessionId: info.sessionId, harness: HARNESS, capabilities: acp.capabilities, hermesStores: HERMES_STORES, storeCaps: caps });
+    broadcast({ type: "agentState", state: "ready", agent: info.agent, sessionId: info.sessionId, harness: harness, capabilities: acp.capabilities, hermesStores: HERMES_STORES, storeCaps: caps });
     return acp;
   })().finally(() => { connecting = null; });
   return connecting;
@@ -201,7 +221,7 @@ async function speakFinal(userText, finalText) {
 wss.on("connection", (ws) => {
   clients.add(ws);
   ws.on("close", () => clients.delete(ws));
-  send(ws, { type: "hello", workspace: WORKSPACE, serveState: serve.state, agent: acp?.agentInfo || null, model: serve.model, harness: HARNESS, capabilities: acp?.capabilities || null, hermesStores: HERMES_STORES, storeCaps: caps });
+  send(ws, { type: "hello", workspace: WORKSPACE, serveState: serve.state, agent: acp?.agentInfo || null, model: serve.model, harness: harness, capabilities: acp?.capabilities || null, hermesStores: HERMES_STORES, storeCaps: caps });
   ws.on("message", async (buf, isBinary) => {
     if (isBinary) {
       // one utterance per frame (push-to-talk release sends the whole recording)
@@ -291,6 +311,38 @@ wss.on("connection", (ws) => {
         // one-click: is a hermes home present? which model?
         const { existsSync } = await import("node:fs");
         reply(true, { hermes: existsSync(process.env.HOME + "/.hermes"), workspace: WORKSPACE, model: serve.model, serveState: serve.state });
+      } else if (msg.type === "settings.get") {
+        reply(true, {
+          harness, harnesses: Object.keys(HARNESS_CMD),
+          model: serve.model, models: MODEL_CHOICES, serveState: serve.state,
+          gateway: gateway.status(), gatewayNeeded: harness === "openclaw",
+          agentAlive: !!acp?.alive,
+        });
+      } else if (msg.type === "harness.set") {
+        if (!HARNESS_CMD[msg.harness]) return reply(false, null, "unknown harness");
+        if (msg.harness !== harness) {
+          applyHarness(msg.harness);
+          try { acp?.cancel(); } catch { /* */ } // fire the cancel hook first: clears pending permission cards (review P2)
+          try { acp?.stop(); } catch { /* */ } // drop the old bridge; next turn reconnects to the new one
+          acp = null; connecting = null;
+          broadcast({ type: "harnessSwitched", harness, storeCaps: caps, hermesStores: HERMES_STORES });
+          broadcast({ type: "agentState", state: "down", code: "harness-switch" });
+        }
+        reply(true, { harness, storeCaps: caps, gatewayNeeded: harness === "openclaw", gateway: gateway.status() });
+      } else if (msg.type === "gateway.status") {
+        reply(true, gateway.status());
+      } else if (msg.type === "gateway.start") {
+        reply(true, await gateway.start());
+        broadcast({ type: "gatewayState", ...gateway.status() });
+      } else if (msg.type === "gateway.stop") {
+        reply(true, gateway.stop());
+        broadcast({ type: "gatewayState", ...gateway.status() });
+      } else if (msg.type === "serve.setModel") {
+        if (!MODEL_CHOICES.some((m) => m.id === msg.model)) return reply(false, null, "unknown model");
+        broadcast({ type: "serveState", state: "starting" });
+        const state = await serve.setModel(msg.model);
+        broadcast({ type: "modelSwitched", model: serve.model, serveState: state });
+        reply(true, { model: serve.model, serveState: state });
       } else if (msg.type === "counters") {
         reply(true, counters());
       } else if (msg.type === "health") {

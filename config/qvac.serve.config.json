@@ -1,16 +1,23 @@
 {
-  "_comment_top": "QVAC Cockpit default serve config. Hero model: Qwen3.6-35B-A3B MoE (35B knowledge, ~3B active/token = fast, Q4_K_M ~22GB). Alias 'qwen3.6-moe'. Start: qvac serve openai -c <thispath> --model qwen3.6-moe (default port 11434). Swap the model block for a smaller quant if 22GB doesn't fit your machine.",
-  "_comment_tools": "tools:true + toolsMode:'static' is REQUIRED for an external OpenAI client like Hermes. 'dynamic' = the SDK's in-process loop -> tool calls leak as raw text / never execute (looks like model weakness). 'auto' is INVALID (model fails preload, 503). Verified on OpenCode 2026-06-19.",
-  "_comment_reasoning": "reasoning_budget:0 disables Qwen3 thinking. Kept 0 because thinking hurt tool-calling under toolsMode:static in the OpenCode tests. Turn back on only if a demo beat is specifically about reasoning.",
-  "_comment_ctx": "ctx_size 32768. Hermes auto-detects context_length from /v1/models. Hermes' system prompt grows with enabled skills, so narrow skills for the demo (hermes skills) to keep prompt processing snappy. Bump ctx if Hermes warns about context.",
+  "_comment_top": "QVAC Cockpit serve config. Defines the models the Settings picker offers, ALL with tools:true + toolsMode:static (required for external harnesses like Hermes/OpenClaw: 'dynamic' leaks tool calls as text, 'auto' 503s). Start: qvac serve openai -c <thispath> --model <alias> (default port 11434). The cockpit restarts the serve with a different --model alias when you switch models in Settings.",
+  "_comment_reasoning": "reasoning_budget:0 disables Qwen3 thinking (it hurt tool-calling under toolsMode:static in the OpenCode/Hermes tests). Turn on only for a reasoning-specific demo.",
   "plugins": ["@qvac/sdk/llamacpp-completion/plugin"],
   "serve": {
     "models": {
+      "qwen3.5-4b": {
+        "model": "QWEN3_5_4B_MULTIMODAL_Q4_K_M",
+        "type": "llamacpp-completion",
+        "config": { "tools": true, "toolsMode": "static", "ctx_size": 32768, "gpu_layers": -1, "reasoning_budget": 0 }
+      },
+      "qwen3.5-9b": {
+        "model": "QWEN3_5_9B_MULTIMODAL_Q4_K_M",
+        "type": "llamacpp-completion",
+        "config": { "tools": true, "toolsMode": "static", "ctx_size": 32768, "gpu_layers": -1, "reasoning_budget": 0 }
+      },
       "qwen3.6-moe": {
         "model": "QWEN3_6_35B_A3B_MULTIMODAL_Q4_K_M",
         "type": "llamacpp-completion",
         "default": true,
-        "preload": true,
         "config": { "tools": true, "toolsMode": "static", "ctx_size": 32768, "gpu_layers": -1, "reasoning_budget": 0 }
       }
     }

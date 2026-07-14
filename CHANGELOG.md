@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 (2026-07-14)
+- New **Settings** pane: switch the harness (Hermes <-> OpenClaw) at runtime, start/stop the OpenClaw Gateway with a live status dot, and pick the local model. No more env vars / manual `openclaw gateway`.
+- Runtime harness switch: `harness`/`caps`/`STORES` recompute together and the ACP client is dropped so the next message reconnects to the new harness. Mid-turn switch cancels pending permission cards first.
+- `GatewayManager` supervises `openclaw gateway` (spawn/stop/status via the port), guarded against PID reuse on stop.
+- Model picker restarts the serve with a chosen alias (qwen3.5-4b / 9b / 3.6-moe), all defined in the bundled config with tools+static. Model switch holds the serve single-flight mutex so the health watcher can't kill a still-loading model.
+- Fix (self-review): `serve.setModel` now goes through the same in-flight guard as `ensure()` (was racing the 60s watcher into a double spawn/kill on the shared endpoint).
+
 ## 1.2.0 (2026-07-14)
 - Second Brain: clicking a graph node now previews the doc in an in-pane side panel (rendered markdown) instead of jumping away to the Files pane, which was broken for corpus docs living outside the workspace. Click through several docs while staying in Second Brain. New read-only `brain.doc` RPC reads a corpus doc through the same path jail as link-accept.
 - Second Brain resilience: a transient/empty graph rebuild no longer wipes the on-screen graph (kept the last good view + an honest status), fixing the "graph disappeared after accepting a link" report.

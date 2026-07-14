@@ -17,6 +17,7 @@
     <button class="rail-btn" data-pane="files"><span class="rail-ic">≡</span><span class="rail-label">Files</span></button>
     <button class="rail-btn" data-pane="schedule"><span class="rail-ic">◷</span><span class="rail-label">Schedule</span></button>
     <button class="rail-btn" data-pane="skills"><span class="rail-ic">✦</span><span class="rail-label">Skills</span></button>
+    <button class="rail-btn" data-pane="settings"><span class="rail-ic">⚙</span><span class="rail-label">Settings</span></button>
     <div class="rail-spacer"></div>
     <button id="rail-pin" class="rail-btn" title="Pin the sidebar open"><span class="rail-ic">»</span><span class="rail-label">Collapse</span></button>
     <div id="serve-dot" class="rail-dot" title="serve state"></div>
@@ -90,6 +91,26 @@
       <div id="sched-list"></div>
     </section>
     <section id="pane-skills" class="pane"><div id="skills-grid"></div></section>
+    <section id="pane-settings" class="pane">
+      <div id="settings-wrap">
+        <div class="set-card">
+          <h3>HARNESS</h3>
+          <p class="set-hint">Which agent the cockpit drives. Switching drops the current session; the next message reconnects to the new one.</p>
+          <div id="set-harness" class="set-choices"></div>
+        </div>
+        <div class="set-card">
+          <h3>OPENCLAW GATEWAY</h3>
+          <p class="set-hint">OpenClaw's ACP bridge runs through its Gateway. Start it here (and pair this device once with <code>openclaw onboard</code> if the bridge reports a pending scope).</p>
+          <div class="set-row"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">checking...</span></div>
+          <div class="set-row"><button id="set-gw-start">Start gateway</button><button id="set-gw-stop" class="ghost">Stop</button></div>
+        </div>
+        <div class="set-card">
+          <h3>LOCAL MODEL</h3>
+          <p class="set-hint">The QVAC model behind the serve (shared by the harness). Switching restarts the serve; give it up to a minute to load.</p>
+          <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
+        </div>
+      </div>
+    </section>
     <section id="pane-other" class="pane"><div class="placeholder">This pane lands in a later phase.</div></section>
   </main>
 </div>

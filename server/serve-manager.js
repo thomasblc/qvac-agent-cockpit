@@ -80,6 +80,24 @@ export class ServeManager {
     this._set((await this.completionOk()) ? "healthy" : "down");
   }
 
+  // Switch the served model: kill the current serve and respawn with the new --model alias (all
+  // aliases are defined in the bundled config with the tools/static settings harnesses need). The
+  // serve is shared by any running harness, so a switch affects the whole cockpit. MUST hold the
+  // same _inflight mutex ensure() uses (review P1): otherwise the 60s watcher fires mid-respawn,
+  // sees the still-loading model as "degraded", and SIGKILLs the serve we just spawned (port
+  // contention on the always-on endpoint).
+  async setModel(model) {
+    if (model === this.model && this.state === "healthy") return this.state;
+    if (this._inflight) { try { await this._inflight; } catch { /* */ } }
+    this._inflight = (async () => {
+      this.model = model;
+      await this._kill();
+      await this._spawn();
+      return this.state;
+    })().finally(() => { this._inflight = null; });
+    return this._inflight;
+  }
+
   // periodic watch (cheap models check every 60s; full completion check every 10min)
   watch() {
     setInterval(async () => { if (this.state !== "healthy" || !(await this.modelsOk())) await this.ensure(); }, 60000).unref();

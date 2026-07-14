@@ -17,7 +17,7 @@ function renderUnavailable(container, data) {
 }
 
 // ---------- pane routing (replaces app.js's placeholder routing) ----------
-const PANES = ["cockpit", "mission", "brain", "files", "schedule", "skills"];
+const PANES = ["cockpit", "mission", "brain", "files", "schedule", "skills", "settings"];
 document.querySelectorAll(".rail-btn[data-pane]").forEach((b) => {
   b.onclick = () => {
     document.querySelectorAll(".rail-btn[data-pane]").forEach((x) => x.classList.toggle("active", x === b));
@@ -29,6 +29,7 @@ document.querySelectorAll(".rail-btn[data-pane]").forEach((b) => {
     if (pane === "files") openFiles();
     if (pane === "schedule") openSchedule();
     if (pane === "skills") openSkills();
+    if (pane === "settings") openSettings();
   };
 });
 // Pin the sidebar open (persisted). Without a pin the rail expands on hover only.
@@ -242,3 +243,48 @@ async function openSkills() {
     grid.appendChild(card);
   }
 }
+
+// ---------- SETTINGS (harness switch / gateway / model) ----------
+function gwDot(up) { const d = $("set-gw-dot"); d.className = "set-dot " + (up ? "up" : "down"); }
+function renderGateway(g, needed) {
+  gwDot(!!g?.up);
+  $("set-gw-status").textContent = g?.up ? `running on :${g.port}${g.pid ? " (pid " + g.pid + ")" : ""}` : (needed ? "not running - start it for OpenClaw's ACP bridge" : "not running (only needed for OpenClaw)");
+}
+async function openSettings() {
+  const r = await rpc("settings.get", {});
+  if (!r.ok) return;
+  const d = r.data;
+  // harness choices
+  const hbox = $("set-harness"); hbox.textContent = "";
+  for (const h of d.harnesses) {
+    const b = document.createElement("button");
+    b.className = "set-choice" + (h === d.harness ? " active" : "");
+    b.textContent = h === "hermes" ? "Hermes" : h === "openclaw" ? "OpenClaw" : h;
+    b.onclick = async () => {
+      if (h === d.harness) return;
+      hbox.querySelectorAll(".set-choice").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active"); b.disabled = true;
+      const rr = await rpc("harness.set", { harness: h });
+      b.disabled = false;
+      if (rr.ok) { renderGateway(rr.data.gateway, rr.data.gatewayNeeded); openSettings(); }
+    };
+    hbox.appendChild(b);
+  }
+  // gateway
+  renderGateway(d.gateway, d.gatewayNeeded);
+  $("set-gw-start").onclick = async () => { $("set-gw-status").textContent = "starting..."; const rr = await rpc("gateway.start", {}); renderGateway(rr.data, true); };
+  $("set-gw-stop").onclick = async () => { const rr = await rpc("gateway.stop", {}); renderGateway(rr.data, d.gatewayNeeded); };
+  // model
+  const sel = $("set-model"); sel.textContent = "";
+  for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }
+  $("set-model-state").textContent = "serve: " + d.serveState;
+  sel.onchange = async () => {
+    $("set-model-state").textContent = "restarting serve (up to ~60s)...";
+    sel.disabled = true;
+    const rr = await rpc("serve.setModel", { model: sel.value });
+    sel.disabled = false;
+    $("set-model-state").textContent = rr.ok ? `serve: ${rr.data.serveState} (${rr.data.model})` : "failed: " + rr.error;
+  };
+}
+// live gateway/model pushes keep the panel fresh if it is open
+onFrame("gatewayState", (m) => { if ($("pane-settings").classList.contains("active")) renderGateway(m, true); });
