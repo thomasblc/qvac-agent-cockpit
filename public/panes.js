@@ -18,9 +18,9 @@ function renderUnavailable(container, data) {
 
 // ---------- pane routing (replaces app.js's placeholder routing) ----------
 const PANES = ["cockpit", "mission", "brain", "files", "schedule", "skills"];
-document.querySelectorAll(".rail-btn").forEach((b) => {
+document.querySelectorAll(".rail-btn[data-pane]").forEach((b) => {
   b.onclick = () => {
-    document.querySelectorAll(".rail-btn").forEach((x) => x.classList.toggle("active", x === b));
+    document.querySelectorAll(".rail-btn[data-pane]").forEach((x) => x.classList.toggle("active", x === b));
     const pane = b.dataset.pane;
     for (const p of PANES) $("pane-" + p)?.classList.toggle("active", p === pane);
     $("pane-other").classList.toggle("active", !PANES.includes(pane));
@@ -31,17 +31,40 @@ document.querySelectorAll(".rail-btn").forEach((b) => {
     if (pane === "skills") openSkills();
   };
 });
+// Pin the sidebar open (persisted). Without a pin the rail expands on hover only.
+const railPin = $("rail-pin");
+if (railPin) {
+  const setPinned = (on) => { $("rail").classList.toggle("pinned", on); localStorage.setItem("cockpit-rail-pinned", on ? "1" : ""); railPin.querySelector(".rail-label").textContent = on ? "Collapse" : "Keep open"; };
+  setPinned(localStorage.getItem("cockpit-rail-pinned") === "1");
+  railPin.onclick = () => setPinned(!$("rail").classList.contains("pinned"));
+}
 
 // ---------- BRAIN ----------
 let graph = null, graphData = null;
 function ensureGraph() {
   if (graph) return graph;
   graph = new Graph($("brain-canvas"));
-  graph.onClick = (n) => openFileById(n.path);
+  // Click a node -> preview the doc in the side panel, WITHOUT leaving Second Brain, so you can
+  // click through several docs to find the one you want. (Was: jump to the Files pane, which broke
+  // for corpus docs outside the workspace.)
+  graph.onClick = (n) => openDocInBrain(n.path, n.label);
   const r = $("brain-canvas").getBoundingClientRect();
   graph.resize(r.width, r.height);
   return graph;
 }
+async function openDocInBrain(id, label) {
+  const box = $("brain-doc");
+  box.classList.remove("hidden");
+  $("brain-doc-title").textContent = label || id;
+  $("brain-doc-body").textContent = "loading...";
+  // NB: the doc id goes as `docId`, NOT `id` - rpc()'s envelope uses `id` and `...extra` would
+  // clobber it, sending the doc path as the request id so the reply never matches (silent hang).
+  const r = await rpc("brain.doc", { docId: id });
+  if (!r.ok) { $("brain-doc-body").textContent = "could not read: " + (r.error || "unknown"); return; }
+  $("brain-doc-body").innerHTML = renderMarkdown(r.data.content || "");
+  $("brain-side").scrollTop = 0;
+}
+$("brain-doc-close").onclick = () => $("brain-doc").classList.add("hidden");
 async function openBrain() {
   ensureGraph();
   if (!graphData) await refreshGraph();
@@ -49,7 +72,15 @@ async function openBrain() {
 async function refreshGraph() {
   $("brain-status").textContent = "building graph...";
   const g = await rpc("brain.graph", {});
-  graphData = g.data || { nodes: [], edges: [] };
+  // Resilience: a transient server hiccup (e.g. a slow/failed rebuild) must NOT wipe a good graph.
+  // Only replace when we actually got nodes back; otherwise keep what is on screen and say so.
+  if (!g.ok || !g.data || !Array.isArray(g.data.nodes) || !g.data.nodes.length) {
+    $("brain-status").textContent = graphData
+      ? "graph rebuild returned nothing; kept the current view" + (g.error ? " (" + g.error + ")" : "")
+      : "no docs indexed yet - click Index corpus";
+    return;
+  }
+  graphData = g.data;
   ensureGraph().setData(graphData);
   applyLens($("brain-lens").value);
   const sem = graphData.edges.filter((e) => e.kind === "embed").length;

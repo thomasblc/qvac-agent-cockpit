@@ -214,4 +214,14 @@ export async function acceptLink(aId, bId, workspace = null) {
   }
   return { written: next !== content, link };
 }
+// Read a single corpus doc by its walker id (e.g. ".hermes/SOUL.md"), jailed to the corpus roots.
+// The Second Brain pane uses this to preview a clicked node WITHOUT leaving the pane; corpus docs
+// live outside the workspace (~/.hermes/...), so files.read (workspace-only) cannot serve them.
+export function readCorpusDoc(id, workspace = null) {
+  const f = walkCorpus(workspace).find((x) => x.id === id);
+  if (!f) throw new Error("doc not in corpus");
+  const roots = corpusRoots(workspace).map((r) => r.root);
+  const abs = assertSafeFile(f.abs, roots); // rejects symlink/hardlink/escape (same jail as accept)
+  return { id, content: readFileSync(abs, "utf8").slice(0, 200000), profile: f.profile };
+}
 export { idx as brainIndex };

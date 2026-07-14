@@ -18,7 +18,7 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as hermesHistory from "./history.js";
 import { readBoard, KanbanWatcher, kanbanAvailable } from "./kanban.js";
-import { indexCorpus, buildGraph, scanLinks, acceptLink } from "./brain.js";
+import { indexCorpus, buildGraph, scanLinks, acceptLink, readCorpusDoc } from "./brain.js";
 import { listFiles, readFileById, writeFileById, markReviewed, revertToReviewed, counters, bump } from "./files.js";
 import { jobsWithSummaries, tickerAlive, cronAction } from "./cron.js";
 import { listSkills as hermesListSkills } from "./skills.js";
@@ -255,6 +255,8 @@ wss.on("connection", (ws) => {
         reply(true, buildGraph(WORKSPACE, { semantic: msg.semantic !== false }));
       } else if (msg.type === "brain.scan") {
         reply(true, await scanLinks({ serveBase: serve.base(), model: serve.model, existingPairs: msg.existingPairs || [], scope: msg.scope || null }, (f) => send(ws, f)));
+      } else if (msg.type === "brain.doc") {
+        reply(true, readCorpusDoc(msg.docId, WORKSPACE));
       } else if (msg.type === "brain.accept") {
         const r = await acceptLink(msg.a, msg.b, WORKSPACE); bump("links_created");
         broadcast({ type: "linkCreated", a: msg.a, b: msg.b });

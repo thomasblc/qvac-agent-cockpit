@@ -2,6 +2,7 @@
 // the orb as the AGENT's avatar (states from real ACP events), L1 status line with a live timer.
 import { Orb } from "./orb.js";
 import { formatEgressChip } from "./egress-format.js";
+import { renderMarkdown } from "./md.js";
 
 const $ = (id) => document.getElementById(id);
 const orb = new Orb($("orb-canvas"));
@@ -166,7 +167,13 @@ function onMessage(ev) {
       break;
     }
     case "final": {
-      if (agentEl) agentEl.classList.remove("streaming");
+      // Render the finished reply as markdown (bold, lists, code) instead of the raw ** and - it
+      // streamed as. renderMarkdown is escape-first, so agent-authored text cannot inject HTML.
+      if (agentEl) {
+        agentEl.classList.remove("streaming");
+        const full = (m.text && m.text.trim()) ? m.text : agentText;
+        if (full && full.trim()) { agentEl.classList.add("md"); agentEl.innerHTML = renderMarkdown(full); }
+      }
       const meta = document.createElement("div");
       meta.className = "final-meta";
       meta.textContent = `${m.stopReason} · ${m.toolCount} tool call(s) · ${(m.elapsedMs / 1000).toFixed(1)}s`;

@@ -10,14 +10,15 @@
 <div id="shell">
   <!-- left rail: the six panes (P1 wires Cockpit; the rest are placeholders lighting up per phase) -->
   <nav id="rail">
-    <div class="rail-logo">Q</div>
-    <button class="rail-btn active" data-pane="cockpit" title="Cockpit">◈</button>
-    <button class="rail-btn" data-pane="mission" title="Mission Control (P3)">▤</button>
-    <button class="rail-btn" data-pane="brain" title="Second Brain (P4)">⌬</button>
-    <button class="rail-btn" data-pane="files" title="Files (P4)">≡</button>
-    <button class="rail-btn" data-pane="schedule" title="Schedule (P5)">◷</button>
-    <button class="rail-btn" data-pane="skills" title="Skills (P5)">✦</button>
+    <div class="rail-logo"><span class="rail-ic">Q</span><span class="rail-label">QVAC Cockpit</span></div>
+    <button class="rail-btn active" data-pane="cockpit"><span class="rail-ic">◈</span><span class="rail-label">Cockpit</span></button>
+    <button class="rail-btn" data-pane="mission"><span class="rail-ic">▤</span><span class="rail-label">Mission Control</span></button>
+    <button class="rail-btn" data-pane="brain"><span class="rail-ic">⌬</span><span class="rail-label">Second Brain</span></button>
+    <button class="rail-btn" data-pane="files"><span class="rail-ic">≡</span><span class="rail-label">Files</span></button>
+    <button class="rail-btn" data-pane="schedule"><span class="rail-ic">◷</span><span class="rail-label">Schedule</span></button>
+    <button class="rail-btn" data-pane="skills"><span class="rail-ic">✦</span><span class="rail-label">Skills</span></button>
     <div class="rail-spacer"></div>
+    <button id="rail-pin" class="rail-btn" title="Pin the sidebar open"><span class="rail-ic">»</span><span class="rail-label">Collapse</span></button>
     <div id="serve-dot" class="rail-dot" title="serve state"></div>
   </nav>
 
@@ -66,7 +67,13 @@
       </div>
       <div id="brain-split">
         <canvas id="brain-canvas"></canvas>
-        <div id="brain-side"><h3>PROPOSED LINKS</h3><div id="brain-proposals" class="lane"></div></div>
+        <div id="brain-side">
+          <div id="brain-doc" class="hidden">
+            <div id="brain-doc-head"><span id="brain-doc-title"></span><button id="brain-doc-close" title="close">✕</button></div>
+            <div id="brain-doc-body"></div>
+          </div>
+          <h3>PROPOSED LINKS</h3><div id="brain-proposals" class="lane"></div>
+        </div>
       </div>
     </section>
     <section id="pane-files" class="pane">
