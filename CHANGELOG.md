@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 (2026-07-14)
+- **Fix (critical): the cockpit killed itself on model switch.** ServeManager/_kill reclaimed the serve port with a bare `lsof -ti tcp:PORT` (no `-sTCP:LISTEN`), which also matched the cockpit's own keep-alive client sockets to the serve, so switching the model killed the cockpit process -> "OFFLINE / connection lost", nothing worked. Now filters `-sTCP:LISTEN` (both serve + gateway managers) so only the listener is reaped. Also aligned to absolute `/usr/sbin/lsof`.
+- **Settings UX rebuilt around one action.** Pick Hermes/OpenClaw (instant active state), then a single **Connect** button opens the session with real feedback (connecting -> connected / actionable error). For OpenClaw the Gateway is started for you by Connect; its card only shows when OpenClaw is selected. Model switch shows restart progress and no longer drops the connection.
+- New `agent.connect` RPC (start gateway if needed -> ensureAcp), so connecting is explicit instead of a blind first message.
+- Status line resets to STANDBY when the agent reconnects (was stuck on "AGENT DOWN").
+
 ## 1.3.0 (2026-07-14)
 - New **Settings** pane: switch the harness (Hermes <-> OpenClaw) at runtime, start/stop the OpenClaw Gateway with a live status dot, and pick the local model. No more env vars / manual `openclaw gateway`.
 - Runtime harness switch: `harness`/`caps`/`STORES` recompute together and the ACP client is dropped so the next message reconnects to the new harness. Mid-turn switch cancels pending permission cards first.

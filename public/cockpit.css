@@ -214,3 +214,10 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .set-card button.ghost { border-color: var(--line); background: transparent; color: var(--mut); }
 .set-card button:hover { filter: brightness(1.2); }
 .set-card select { background: var(--elevated); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 12.5px var(--mono); padding: 7px 10px; cursor: pointer; }
+
+/* settings connect bar */
+.set-connbar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.set-connbar #set-conn-status { flex: 1; font-size: 12.5px; color: var(--mut); font-family: var(--mono); }
+.set-dot.starting { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+#set-connect { padding: 8px 16px; }
+#set-conn-hint { margin-top: 8px; }

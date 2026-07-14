@@ -94,19 +94,24 @@
     <section id="pane-settings" class="pane">
       <div id="settings-wrap">
         <div class="set-card">
-          <h3>HARNESS</h3>
-          <p class="set-hint">Which agent the cockpit drives. Switching drops the current session; the next message reconnects to the new one.</p>
+          <h3>AGENT</h3>
+          <p class="set-hint">Pick the agent the cockpit drives, then connect. For OpenClaw the Gateway is started for you.</p>
           <div id="set-harness" class="set-choices"></div>
+          <div class="set-connbar">
+            <span id="set-conn-dot" class="set-dot"></span>
+            <span id="set-conn-status">not connected</span>
+            <button id="set-connect">Connect</button>
+          </div>
+          <div id="set-conn-hint" class="set-hint"></div>
         </div>
-        <div class="set-card">
+        <div class="set-card" id="set-gw-card">
           <h3>OPENCLAW GATEWAY</h3>
-          <p class="set-hint">OpenClaw's ACP bridge runs through its Gateway. Start it here (and pair this device once with <code>openclaw onboard</code> if the bridge reports a pending scope).</p>
-          <div class="set-row"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">checking...</span></div>
-          <div class="set-row"><button id="set-gw-start">Start gateway</button><button id="set-gw-stop" class="ghost">Stop</button></div>
+          <p class="set-hint">Started automatically when you connect to OpenClaw. If the bridge reports a pending scope, pair this device once with <code>openclaw onboard</code>.</p>
+          <div class="set-row"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">checking...</span><button id="set-gw-stop" class="ghost">Stop</button></div>
         </div>
         <div class="set-card">
           <h3>LOCAL MODEL</h3>
-          <p class="set-hint">The QVAC model behind the serve (shared by the harness). Switching restarts the serve; give it up to a minute to load.</p>
+          <p class="set-hint">The QVAC model behind the serve. Switching restarts the serve automatically (up to a minute). Smaller = faster.</p>
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
       </div>

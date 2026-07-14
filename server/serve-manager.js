@@ -60,8 +60,11 @@ export class ServeManager {
         if (/qvac|node/.test(comm)) process.kill(pid, "SIGKILL");
       }
     } catch { /* */ }
-    // reclaim the port from a foreign/half-dead serve too (review P0-2)
-    try { (await import("node:child_process")).execSync(`lsof -ti tcp:${this.port} 2>/dev/null | xargs kill -9 2>/dev/null || true`); } catch { /* */ }
+    // reclaim the port from a foreign/half-dead serve too (review P0-2). MUST filter -sTCP:LISTEN:
+    // a bare `lsof -ti tcp:PORT` also matches CLIENTS connected to the port, i.e. the cockpit's own
+    // keep-alive sockets to the serve (health checks / completions) -> killing those would kill the
+    // cockpit itself. This bit setModel, which runs _kill mid-operation while the cockpit is connected.
+    try { (await import("node:child_process")).execSync(`/usr/sbin/lsof -ti tcp:${this.port} -sTCP:LISTEN 2>/dev/null | xargs kill -9 2>/dev/null || true`); } catch { /* */ }
     await new Promise((r) => setTimeout(r, 1500));
   }
 

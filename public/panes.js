@@ -244,37 +244,63 @@ async function openSkills() {
   }
 }
 
-// ---------- SETTINGS (harness switch / gateway / model) ----------
-function gwDot(up) { const d = $("set-gw-dot"); d.className = "set-dot " + (up ? "up" : "down"); }
-function renderGateway(g, needed) {
-  gwDot(!!g?.up);
-  $("set-gw-status").textContent = g?.up ? `running on :${g.port}${g.pid ? " (pid " + g.pid + ")" : ""}` : (needed ? "not running - start it for OpenClaw's ACP bridge" : "not running (only needed for OpenClaw)");
+// ---------- SETTINGS (pick a harness -> connect; gateway auto; model) ----------
+let setChosen = null;      // harness the user is looking at (may differ from connected until Connect)
+let setConnected = false;  // is the ACP session live?
+function setDot(el, cls) { $(el).className = "set-dot " + cls; }
+function renderConn() {
+  setDot("set-conn-dot", setConnected ? "up" : "down");
+  $("set-conn-status").textContent = setConnected ? `connected to ${setChosen}` : `${setChosen} selected - not connected`;
+  const btn = $("set-connect");
+  btn.textContent = setConnected ? "Reconnect" : `Connect to ${setChosen === "openclaw" ? "OpenClaw" : "Hermes"}`;
+}
+function renderGateway(g) {
+  setDot("set-gw-dot", g?.up ? "up" : "down");
+  $("set-gw-status").textContent = g?.up ? `running on :${g.port}${g.pid ? " (pid " + g.pid + ")" : ""}` : "not running";
+  // gateway card only matters for OpenClaw
+  $("set-gw-card").style.display = setChosen === "openclaw" ? "" : "none";
+}
+async function selectHarness(h, hbox) {
+  if (h === setChosen) return;
+  setChosen = h; setConnected = false;
+  hbox.querySelectorAll(".set-choice").forEach((x) => x.classList.toggle("active", x.dataset.h === h));
+  $("set-conn-hint").textContent = "";
+  const rr = await rpc("harness.set", { harness: h });    // server drops the old session; connect re-establishes
+  if (rr.ok) renderGateway(rr.data.gateway);
+  renderConn();
 }
 async function openSettings() {
   const r = await rpc("settings.get", {});
   if (!r.ok) return;
   const d = r.data;
-  // harness choices
+  setChosen = d.harness; setConnected = !!d.agentAlive;
+  // harness choices (instant active state on click)
   const hbox = $("set-harness"); hbox.textContent = "";
   for (const h of d.harnesses) {
     const b = document.createElement("button");
-    b.className = "set-choice" + (h === d.harness ? " active" : "");
+    b.className = "set-choice" + (h === setChosen ? " active" : "");
+    b.dataset.h = h;
     b.textContent = h === "hermes" ? "Hermes" : h === "openclaw" ? "OpenClaw" : h;
-    b.onclick = async () => {
-      if (h === d.harness) return;
-      hbox.querySelectorAll(".set-choice").forEach((x) => x.classList.remove("active"));
-      b.classList.add("active"); b.disabled = true;
-      const rr = await rpc("harness.set", { harness: h });
-      b.disabled = false;
-      if (rr.ok) { renderGateway(rr.data.gateway, rr.data.gatewayNeeded); openSettings(); }
-    };
+    b.onclick = () => selectHarness(h, hbox);
     hbox.appendChild(b);
   }
-  // gateway
-  renderGateway(d.gateway, d.gatewayNeeded);
-  $("set-gw-start").onclick = async () => { $("set-gw-status").textContent = "starting..."; const rr = await rpc("gateway.start", {}); renderGateway(rr.data, true); };
-  $("set-gw-stop").onclick = async () => { const rr = await rpc("gateway.stop", {}); renderGateway(rr.data, d.gatewayNeeded); };
-  // model
+  renderGateway(d.gateway);
+  renderConn();
+  // Connect: the one "launch it" action. Starts the OpenClaw gateway for you, then opens the session.
+  $("set-connect").onclick = async () => {
+    const btn = $("set-connect"); btn.disabled = true;
+    $("set-conn-status").textContent = "connecting..."; setDot("set-conn-dot", "starting");
+    $("set-conn-hint").textContent = setChosen === "openclaw" ? "starting gateway + opening ACP session..." : "opening ACP session...";
+    const rr = await rpc("agent.connect", {});
+    btn.disabled = false;
+    if (rr.data?.gateway) renderGateway(rr.data.gateway);
+    setConnected = !!rr.data?.connected;
+    renderConn();
+    if (rr.data?.connected) $("set-conn-hint").textContent = `ready${rr.data.startedGateway ? " (started the gateway)" : ""}. Go to Cockpit and send a message.`;
+    else $("set-conn-hint").textContent = rr.data?.hint || ("could not connect: " + (rr.data?.error || rr.error || "unknown"));
+  };
+  $("set-gw-stop").onclick = async () => { const rr = await rpc("gateway.stop", {}); renderGateway(rr.data); };
+  // model (restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }
   $("set-model-state").textContent = "serve: " + d.serveState;
@@ -286,5 +312,10 @@ async function openSettings() {
     $("set-model-state").textContent = rr.ok ? `serve: ${rr.data.serveState} (${rr.data.model})` : "failed: " + rr.error;
   };
 }
-// live gateway/model pushes keep the panel fresh if it is open
-onFrame("gatewayState", (m) => { if ($("pane-settings").classList.contains("active")) renderGateway(m, true); });
+// live pushes keep the panel fresh if it is open
+onFrame("gatewayState", (m) => { if ($("pane-settings").classList.contains("active")) renderGateway(m); });
+onFrame("agentState", (m) => {
+  if (!$("pane-settings").classList.contains("active")) return;
+  if (m.state === "ready") { setConnected = true; renderConn(); }
+  else if (m.state === "down" && m.code !== "harness-switch") { setConnected = false; renderConn(); }
+});

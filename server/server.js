@@ -329,6 +329,17 @@ wss.on("connection", (ws) => {
           broadcast({ type: "agentState", state: "down", code: "harness-switch" });
         }
         reply(true, { harness, storeCaps: caps, gatewayNeeded: harness === "openclaw", gateway: gateway.status() });
+      } else if (msg.type === "agent.connect") {
+        // The "launch it" action: for OpenClaw, bring the Gateway up first (its ACP bridge needs it),
+        // then establish the ACP session so the user gets real feedback instead of a blind first msg.
+        try {
+          let startedGateway = false;
+          if (harness === "openclaw" && !gateway.listening()) { await gateway.start(); startedGateway = true; }
+          const info = await ensureAcp();
+          reply(true, { connected: true, harness, agent: acp?.agentInfo || null, capabilities: acp?.capabilities || null, startedGateway, gateway: gateway.status() });
+        } catch (e) {
+          reply(true, { connected: false, harness, error: String(e?.message || e).slice(0, 300), hint: e?.hint || null, gateway: gateway.status() });
+        }
       } else if (msg.type === "gateway.status") {
         reply(true, gateway.status());
       } else if (msg.type === "gateway.start") {

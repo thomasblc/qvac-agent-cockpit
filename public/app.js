@@ -128,7 +128,7 @@ function onMessage(ev) {
       break;
     case "serveState": setServeDot(m.state); break;
     case "agentState":
-      if (m.state === "ready") { $("agent-name").textContent = m.agent?.name || "agent"; renderCaps(m.harness, m.capabilities, m.storeCaps); }
+      if (m.state === "ready") { $("agent-name").textContent = m.agent?.name || "agent"; renderCaps(m.harness, m.capabilities, m.storeCaps); if (!busy) setStatus("STANDBY", ""); }
       else if (m.state === "down") { setStatus("AGENT DOWN", "restarting on next message"); orb.setState("standby"); }
       break;
     case "turnStart":

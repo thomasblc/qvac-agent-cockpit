@@ -54,7 +54,9 @@ export class GatewayManager {
         if (/openclaw|node/.test(comm)) process.kill(pid, "SIGTERM");
       }
     } catch { /* */ }
-    try { execSync(`/usr/sbin/lsof -ti tcp:${this.port} 2>/dev/null | xargs kill 2>/dev/null || true`); } catch { /* */ }
+    // -sTCP:LISTEN so we only kill the listener, never a client socket on this port (same self-kill
+    // hazard as the serve: a bare lsof would match anything connected to the gateway).
+    try { execSync(`/usr/sbin/lsof -ti tcp:${this.port} -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true`); } catch { /* */ }
     return { up: false, pid: null, port: this.port };
   }
 }
