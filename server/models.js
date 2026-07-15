@@ -18,7 +18,15 @@ function saveCfg(patch) {
   return cfg;
 }
 function expandHome(p) { const s = String(p || "").trim(); if (!s) return ""; return s.startsWith("~") ? join(H, s.slice(1)) : (isAbsolute(s) ? s : resolve(s)); }
-const alias = (name) => name.replace(/\.gguf$/i, "").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 48) || "local-model";
+// Reserved bundled-catalog aliases a local model must NOT reuse (else it would overwrite the catalog
+// entry in the merged serve config). Keep in sync with BASE_MODEL_CHOICES in server.js.
+const RESERVED = new Set(["qwen3.5-4b", "qwen3.5-9b", "qwen3.6-moe"]);
+function alias(name, taken = new Set()) {
+  let base = name.replace(/\.gguf$/i, "").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 48) || "local-model";
+  let a = base, n = 2;
+  while (RESERVED.has(a) || taken.has(a)) a = `${base}-${n++}`;
+  return a;
+}
 
 export function getModelsFolder() { return loadCfg().modelsFolder || null; }
 export function getLocalModels() { return loadCfg().localModels || []; } // [{alias, src, type, sizeMB}]
@@ -54,7 +62,7 @@ export function addLocalModel({ path, type = "llamacpp-completion", alias: a } =
   const src = expandHome(path);
   if (!src || !existsSync(src) || !/\.gguf$/i.test(src)) throw new Error("not a .gguf file: " + src);
   const list = getLocalModels();
-  const id = a || alias(basename(src));
+  const id = a || alias(basename(src), new Set(list.map((m) => m.alias)));
   const entry = { alias: id, src, type, sizeMB: Math.round(statSync(src).size / 1e6) };
   const next = [...list.filter((m) => m.alias !== id && m.src !== src), entry];
   saveCfg({ localModels: next });
