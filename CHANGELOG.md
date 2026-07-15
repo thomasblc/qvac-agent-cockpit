@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.4.0 (2026-07-15) - Cockpit composition (real layout, not a recolor)
+The main screen was a tiny orb lost in a black void with one floating bubble. Rebuilt the composition (applies to both skins):
+- **Empty state is now a hero**: a large centered orb, a bold headline ("Your agent. On your machine."), a one-line ethos, and four tappable starter prompts that fill the composer and send. No more staring into a void.
+- **Active state**: once a conversation exists the orb folds into a compact presence at the top and the transcript takes over on a centered reading column (max 760px) so long replies do not sprawl edge to edge.
+- Refined message bubbles (asymmetric radius on your side, clean prose for the agent), a centered composer, and a pulsing status dot before the state word.
+
 ## 3.3.0 (2026-07-15) - two signature skins (Mariana + Nostromo)
 Pure visual redesign, no functional change. The flat near-black look is replaced by two distinct, switchable, persisted themes (top-bar picker):
 - **Mariana** (default): bioluminescent deep-water. An abyssal blue-teal canvas whose light rises from below, a living teal orb (round, restless) with a violet secondary, frosted-glass chrome (rail, status bar, input row), a soft glow on the send button.

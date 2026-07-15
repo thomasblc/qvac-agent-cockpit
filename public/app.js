@@ -64,6 +64,13 @@ function stopElapsed() { clearInterval(elapsedTimer); elapsedTimer = null; }
 
 // ---- transcript (append-only, persisted so a page reload keeps the conversation) ----
 const transcript = $("transcript");
+// Cockpit composition: empty = a centered hero (big orb + starters); active = compact orb + reading
+// column. Toggle by whether the transcript holds anything; resize the orb canvas after the CSS settles.
+function setCockpitState() {
+  const empty = transcript.children.length === 0;
+  $("pane-cockpit").classList.toggle("empty", empty);
+  requestAnimationFrame(() => { try { orb.resize(); } catch { /* */ } });
+}
 const CONVO_KEY = "cockpit-convo";
 let convo = [];
 try { convo = JSON.parse(localStorage.getItem(CONVO_KEY) || "[]"); } catch { convo = []; }
@@ -78,9 +85,10 @@ function restoreConvo() {
 }
 function addUser(text) {
   const el = document.createElement("div"); el.className = "msg-user"; el.textContent = text;
-  transcript.appendChild(el); scroll();
+  transcript.appendChild(el); scroll(); setCockpitState();
 }
 restoreConvo(); // bring back the conversation after a page reload
+setCockpitState(); // start in hero (empty) or conversation mode depending on restored history
 function startAgentMsg() {
   agentText = "";
   agentEl = document.createElement("div"); agentEl.className = "msg-agent streaming";
@@ -378,6 +386,11 @@ function applyTheme(t) {
 }
 applyTheme(localStorage.getItem("cockpit-theme") || "mariana");
 themePick.onchange = () => applyTheme(themePick.value);
+
+// hero starters: tap a suggestion to fill the composer and send it
+document.querySelectorAll("#hero-suggest .sug").forEach((b) => {
+  b.onclick = () => { input.value = b.dataset.p || b.textContent; input.dispatchEvent(new Event("input")); submit(); };
+});
 
 onFrame("gamify", (m) => renderGamify(m));
 function renderGamify(m) {

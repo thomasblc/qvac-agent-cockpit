@@ -39,9 +39,21 @@
       </span>
     </header>
 
-    <section id="pane-cockpit" class="pane active">
-      <div id="orb-wrap"><canvas id="orb-canvas"></canvas></div>
-      <div id="transcript"></div>
+    <section id="pane-cockpit" class="pane active empty">
+      <div id="cockpit-stage">
+        <div id="orb-wrap"><canvas id="orb-canvas"></canvas></div>
+        <div id="cockpit-hero">
+          <h1 id="hero-title">Your agent. On your machine.</h1>
+          <p id="hero-sub">OpenClaw on a local QVAC model. Nothing leaves this device.</p>
+          <div id="hero-suggest">
+            <button class="sug" data-p="Résume ma journée: mes emails, mon agenda, ce qui compte.">Résume ma journée</button>
+            <button class="sug" data-p="Quelles tâches sont en attente sur le board ?">Tâches en attente</button>
+            <button class="sug" data-p="Planifie un rappel tous les jours à 8h.">Planifier un rappel</button>
+            <button class="sug" data-p="Cherche dans mon Second Brain: que sais-tu sur QVAC ?">Fouiller mon Second Brain</button>
+          </div>
+        </div>
+        <div id="transcript"></div>
+      </div>
       <div id="input-row">
         <textarea id="input" rows="1" placeholder="Ask your agent... (Enter to send, or ● to speak)"></textarea>
         <button id="mic" title="Record a voice message (transcribed locally). Or hold Space.">●</button>
