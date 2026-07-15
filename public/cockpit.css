@@ -249,3 +249,15 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .lm-row button { padding: 4px 12px; }
 #lm-added:not(:empty) { margin-top: 10px; }
 #lm-found:not(:empty) { margin-top: 8px; max-height: 220px; overflow-y: auto; }
+
+/* schedule create form */
+#sched-new { display: flex; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+#sched-new input { background: var(--elevated); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 12px var(--mono); padding: 7px 10px; }
+#sched-name { width: 200px; } #sched-cron { width: 180px; } #sched-msg { flex: 1; min-width: 220px; }
+#sched-add { padding: 7px 16px; border: 1px solid rgba(22,227,193,0.4); background: var(--live-soft); color: var(--live); border-radius: 8px; font: 12px var(--mono); cursor: pointer; }
+/* channels */
+.chan-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.chan-name { flex: 1; font: 12.5px var(--mono); color: var(--fg); text-transform: capitalize; }
+.chan-state { font: 10px var(--mono); }
+.chan-state.on { color: var(--live); } .chan-state.off { color: var(--dim); }
+.chan-row button { padding: 4px 12px; }

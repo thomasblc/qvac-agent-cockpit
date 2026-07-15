@@ -187,42 +187,54 @@ $("files-text").addEventListener("input", () => {
   }, 1500);
 });
 
-// ---------- SCHEDULE ----------
+// ---------- SCHEDULE (OpenClaw Gateway cron) ----------
 async function openSchedule() {
   const r = await rpc("cron.list", {});
-  if (r.data?.unavailable) { $("sched-banner").textContent = ""; $("sched-banner").className = ""; renderUnavailable($("sched-list"), r.data); return; }
   const banner = $("sched-banner");
-  const t = r.data?.ticker || {};
-  banner.textContent = t.alive ? `scheduler alive (heartbeat ${t.ageS}s ago)` : "SCHEDULER DOWN: jobs will not fire (start hermes gateway)";
-  banner.className = t.alive ? "" : "dead";
+  const st = r.data?.status || {};
+  const down = st.scheduler === "gateway-down" || st.scheduler === "down";
+  const running = st.enabled === true || st.running === true || st.scheduler === "running";
+  banner.textContent = down ? "Gateway not running: connect to OpenClaw (Settings) so jobs can fire."
+    : running ? `OpenClaw cron scheduler running (${(r.data?.jobs || []).length} job${(r.data?.jobs || []).length === 1 ? "" : "s"})`
+    : "OpenClaw cron scheduler: idle";
+  banner.className = down ? "dead" : "";
   const list = $("sched-list");
   list.textContent = "";
   const jobs = r.data?.jobs || [];
-  if (!jobs.length) { const d = document.createElement("div"); d.className = "placeholder"; d.style.height = "120px"; d.textContent = "No scheduled jobs yet. Create one: hermes cron create \"every 2h\" \"your task\""; list.appendChild(d); return; }
+  if (!jobs.length) { const d = document.createElement("div"); d.className = "placeholder"; d.style.height = "80px"; d.textContent = "No scheduled jobs yet. Add one above (cron expr + what the agent should do)."; list.appendChild(d); }
+  const fmt = (ms) => (ms ? new Date(ms).toLocaleString() : "-");
   for (const j of jobs) {
-    const card = document.createElement("div");
-    card.className = "job-card";
+    const card = document.createElement("div"); card.className = "job-card";
+    const enabled = j.enabled !== false && j.disabled !== true;
+    const expr = j.schedule?.expr || j.schedule?.display || j.cron || (j.schedule?.kind === "every" ? "every " + j.schedule?.every : "");
+    const next = j.state?.nextRunAtMs || j.nextRunAtMs || j.state?.nextRunAt;
     const title = document.createElement("div"); title.className = "job-title";
     const nm = document.createElement("span"); nm.textContent = j.name || j.id;
-    const sc = document.createElement("span"); sc.className = "job-sched"; sc.textContent = j.schedule_display || j.schedule?.display || "";
+    const sc = document.createElement("span"); sc.className = "job-sched"; sc.textContent = expr;
     title.append(nm, sc);
-    const line = document.createElement("div"); line.className = "job-line"; line.textContent = j.oneliner || (j.prompt || j.script || "").slice(0, 110);
+    const line = document.createElement("div"); line.className = "job-line"; line.textContent = (j.message || j.payload?.message || j.command || "").slice(0, 140);
     const meta = document.createElement("div"); meta.className = "job-meta";
-    const fmt = (x) => (x ? new Date(x).toLocaleString() : "never");
-    meta.textContent = `next ${fmt(j.next_run_at)} · last ${fmt(j.last_run_at)} ${j.last_status ? "(" + j.last_status + ")" : ""} · ${j.state || (j.enabled ? "scheduled" : "paused")} · ${j.profile}`;
+    meta.textContent = `next ${fmt(next)} · ${enabled ? "enabled" : "disabled"} · delivery: ${j.channel || j.delivery?.channel || "last"}`;
     const acts = document.createElement("div"); acts.className = "job-acts";
-    const mainProfile = !j.profile || j.profile === "main";
-    for (const verb of [j.state === "paused" ? "resume" : "pause", "run", "remove"]) {
-      const b = document.createElement("button"); b.textContent = verb;
-      b.disabled = !mainProfile;
-      if (mainProfile) b.onclick = async () => { b.disabled = true; const a = await rpc("cron.action", { verb, jobId: j.id, profile: j.profile }); if (!a.ok) b.textContent = "failed"; openSchedule(); };
-      else b.title = `read-only: job lives in profile "${j.profile}"`;
+    for (const verb of [enabled ? "disable" : "enable", "run", "rm"]) {
+      const b = document.createElement("button"); b.textContent = verb === "rm" ? "remove" : verb;
+      b.onclick = async () => { b.disabled = true; const a = await rpc("cron.action", { verb, jobId: j.id }); if (!a.ok) { b.textContent = "failed"; banner.textContent = a.error || "action failed"; banner.className = "dead"; } openSchedule(); };
       acts.appendChild(b);
     }
     card.append(title, line, meta, acts);
     list.appendChild(card);
   }
 }
+$("sched-add").onclick = async () => {
+  const name = $("sched-name").value.trim(), cron = $("sched-cron").value.trim(), message = $("sched-msg").value.trim();
+  if (!cron || !message) { $("sched-banner").textContent = "need a cron expression and a message"; $("sched-banner").className = "dead"; return; }
+  const b = $("sched-add"); b.disabled = true; b.textContent = "adding...";
+  const r = await rpc("cron.add", { name, cron, message });
+  b.disabled = false; b.textContent = "Add job";
+  if (!r.ok) { $("sched-banner").textContent = "add failed: " + (r.error || "unknown"); $("sched-banner").className = "dead"; return; }
+  $("sched-name").value = $("sched-cron").value = $("sched-msg").value = "";
+  openSchedule();
+};
 
 // ---------- SKILLS ----------
 async function openSkills() {
@@ -355,6 +367,23 @@ async function openSettings() {
   $("gov-workspace-save").onclick = () => { const w = $("gov-workspace").value.trim(); if (w) govSet({ workspace: w }, "working folder set - reconnect to use it."); };
   $("gov-profile").onchange = (e) => govSet({ toolProfile: e.target.value });
   $("gov-exec").onchange = (e) => govSet({ execAsk: e.target.value });
+  // channels (enable/disable OpenClaw's messaging channels; tokens never handled here)
+  const renderChannels = (list) => {
+    const box = $("chan-list"); box.textContent = "";
+    for (const c of list) {
+      const row = document.createElement("div"); row.className = "chan-row";
+      const nm = document.createElement("span"); nm.className = "chan-name"; nm.textContent = c.id;
+      const state = document.createElement("span"); state.className = "chan-state";
+      state.textContent = c.enabled ? "enabled" : (c.configured ? "configured, off" : (c.present ? "present, no token" : "not set up"));
+      state.classList.add(c.enabled ? "on" : "off");
+      const btn = document.createElement("button");
+      if (!c.configured && !c.enabled) { btn.className = "ghost"; btn.textContent = "needs openclaw onboard"; btn.disabled = true; }
+      else { btn.className = c.enabled ? "ghost" : ""; btn.textContent = c.enabled ? "Disable" : "Enable";
+        btn.onclick = async () => { btn.disabled = true; const rr = await rpc("channels.toggle", { id: c.id, enabled: !c.enabled }); if (rr.ok) renderChannels(rr.data.channels); else { btn.disabled = false; btn.textContent = "failed"; } }; }
+      row.append(nm, state, btn); box.appendChild(row);
+    }
+  };
+  rpc("channels.list", {}).then((cr) => { if (cr.ok) renderChannels(cr.data.channels); });
   // model (restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }

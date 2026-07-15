@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.0 (2026-07-15) - Channels + real cron
+- New **Channels** card in Settings: enable/disable OpenClaw's messaging channels (Telegram, Discord, WhatsApp, Slack, ...). A channel that already has a token shows "configured, off" with an Enable toggle; unconfigured ones point you to `openclaw onboard`. The cockpit never handles your tokens (they stay in OpenClaw's config, redacted here).
+- **Schedule is now a real cron manager** wired to OpenClaw's own Gateway cron (openclaw cron): list jobs with next-run + delivery channel, create a job (cron expr + message), enable/disable/run/remove. Corrects the earlier wrong "OpenClaw has no cron" - it does, and the cockpit drives it. (The agent failing to create a cron from chat was its taskflow tool erroring; the cockpit manages cron directly.)
+- A scheduled reminder needs an enabled delivery channel (e.g. Telegram) to actually reach you - hence the Channels card.
+
 ## 2.4.0 (2026-07-15) - UI polish
 - Settings now uses the full width (responsive multi-column grid) instead of a narrow 40%-wide column.
 - Top bar cleaned up: removed the empty model dropdown, capability badges are now legible pills (only what's supported, with a single muted "no ..." pill for the rest) next to the agent name, tidier spacing.

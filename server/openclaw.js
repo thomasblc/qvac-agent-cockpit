@@ -168,6 +168,51 @@ function which(bin) {
   return null;
 }
 
+// ---- channels: enable/disable OpenClaw's messaging channels (Telegram, Discord, ...) ----
+// We NEVER handle secrets: tokens/keys are only reported as "configured" (redacted), and adding a
+// token is left to `openclaw onboard` (credential entry stays out of the cockpit). We only flip the
+// `enabled` boolean, which is what makes an already-configured channel (e.g. a Telegram bot with a
+// token already set) go live.
+const SECRETISH = /token|secret|key|password|apikey|api_key|credential/i;
+const COMMON_CHANNELS = ["telegram", "whatsapp", "discord", "slack", "signal", "imessage", "sms", "matrix", "msteams", "googlechat"];
+export function channels() {
+  const cfg = readConfig().channels || {};
+  const out = [];
+  for (const id of COMMON_CHANNELS) {
+    const c = cfg[id];
+    const configured = !!c && Object.keys(c).some((k) => SECRETISH.test(k) && c[k]);
+    out.push({ id, present: !!c, enabled: !!(c && c.enabled), configured });
+  }
+  // any other configured channels not in the common list
+  for (const id of Object.keys(cfg)) if (!COMMON_CHANNELS.includes(id)) {
+    const c = cfg[id]; out.push({ id, present: true, enabled: !!(c && c.enabled), configured: !!c && Object.keys(c).some((k) => SECRETISH.test(k) && c[k]) });
+  }
+  return out;
+}
+export function setChannelEnabled(id, on) { return configSet(`channels.${id}.enabled`, !!on, { strictJson: true }); }
+
+// ---- cron: OpenClaw HAS a Gateway cron system (openclaw cron ...). Manage it from the cockpit. ----
+function withToken(args) { const t = gatewayToken(); return t ? [...args, "--token", t] : args; }
+export async function cronList() {
+  const r = await run(withToken(["cron", "list", "--json"]), 12000);
+  try { const d = JSON.parse(r.out.slice(r.out.indexOf("{"), r.out.lastIndexOf("}") + 1)); return d.jobs || []; } catch { return []; }
+}
+export async function cronStatus() {
+  const r = await run(withToken(["cron", "status", "--json"]), 10000);
+  try { return JSON.parse(r.out.slice(r.out.indexOf("{"), r.out.lastIndexOf("}") + 1)); } catch { return { scheduler: r.ok ? "unknown" : "down" }; }
+}
+export async function cronAdd({ cron, message, channel = "last", announce = true, name }) {
+  if (!cron || !message) return { ok: false, error: "need a cron expression and a message" };
+  const args = ["cron", "add", "--cron", cron, "--message", message, "--channel", channel];
+  if (name) args.push("--name", name);
+  if (announce) args.push("--announce");
+  return run(withToken(args), 20000);
+}
+export async function cronAction(verb, id) {
+  if (!["enable", "disable", "rm", "run"].includes(verb) || !id) return { ok: false, error: "bad cron action" };
+  return run(withToken(["cron", verb, id]), 15000);
+}
+
 // Is Docker available? OpenClaw's OS-level sandbox (workspaceAccess ro/rw isolation) is Docker-based,
 // so the cockpit only offers it when Docker is present; otherwise governance = workspace + tool policy.
 export function dockerAvailable() {

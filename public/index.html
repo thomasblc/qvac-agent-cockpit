@@ -88,6 +88,12 @@
     </section>
     <section id="pane-schedule" class="pane">
       <div id="sched-banner"></div>
+      <div id="sched-new">
+        <input id="sched-name" placeholder="name (e.g. meds-reminder)" spellcheck="false">
+        <input id="sched-cron" placeholder="cron expr (e.g. 0 20 * * *)" spellcheck="false">
+        <input id="sched-msg" placeholder="what the agent should do / say" spellcheck="false">
+        <button id="sched-add">Add job</button>
+      </div>
       <div id="sched-list"></div>
     </section>
     <section id="pane-skills" class="pane"><div id="skills-grid"></div></section>
@@ -125,6 +131,11 @@
           </label>
           <div id="gov-sandbox" class="set-field"><span>OS sandbox <em>(container isolation)</em></span><div id="gov-sandbox-body" class="set-hint"></div></div>
           <div id="gov-state" class="set-hint"></div>
+        </div>
+        <div class="set-card">
+          <h3>CHANNELS</h3>
+          <p class="set-hint">Where OpenClaw can message you (and receive from you). Enable a channel that's already set up. Cron reminders and agent messages get delivered here. Adding a bot token is done via <code>openclaw onboard</code> (the cockpit never handles your tokens).</p>
+          <div id="chan-list"></div>
         </div>
         <div class="set-card">
           <h3>LOCAL MODEL</h3>

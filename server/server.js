@@ -37,7 +37,7 @@ const HARNESS_CMD = {
 // honest "not available for this harness" instead of erroring. history/skills are always await-safe
 // (the OpenClaw adapter returns promises; the Hermes modules return values -> Promise.resolve wraps).
 const STORE_CAPS = {
-  openclaw: { history: true, skills: true, kanban: false, cron: false },
+  openclaw: { history: true, skills: true, kanban: false, cron: true }, // OpenClaw HAS a Gateway cron
 };
 const OPENCLAW_STORES = { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills };
 
@@ -294,8 +294,22 @@ wss.on("connection", (ws) => {
         reply(true, markReviewed(msg.fileId, WORKSPACE));
       } else if (msg.type === "files.revert") {
         reply(true, revertToReviewed(msg.fileId, WORKSPACE, msg.knownHash));
-      } else if (msg.type === "cron.list" || msg.type === "cron.action") {
-        reply(true, unavailable("a cron scheduler")); // OpenClaw has no cron store
+      } else if (msg.type === "cron.list") {
+        if (!gateway.listening()) return reply(true, { jobs: [], status: { scheduler: "gateway-down" } });
+        reply(true, { jobs: await openclaw.cronList(), status: await openclaw.cronStatus() });
+      } else if (msg.type === "cron.add") {
+        if (!gateway.listening()) return reply(false, null, "start the OpenClaw gateway first (Connect)");
+        const r = await openclaw.cronAdd({ cron: msg.cron, message: msg.message, channel: msg.channel || "last", name: msg.name });
+        reply(r.ok, r.ok ? { out: r.out } : null, r.ok ? null : (r.error || r.err));
+      } else if (msg.type === "cron.action") {
+        const r = await openclaw.cronAction(msg.verb, msg.jobId);
+        reply(r.ok, r.ok ? { out: r.out } : null, r.ok ? null : (r.error || r.err));
+      } else if (msg.type === "channels.list") {
+        reply(true, { channels: openclaw.channels() });
+      } else if (msg.type === "channels.toggle") {
+        const r = await openclaw.setChannelEnabled(msg.id, msg.enabled);
+        if (!r.ok) return reply(false, null, r.error);
+        reply(true, { channels: openclaw.channels() });
       } else if (msg.type === "skills.list") {
         if (!caps.skills) return reply(true, unavailable("a skills catalog"));
         reply(true, { skills: await STORES.listSkills() });
