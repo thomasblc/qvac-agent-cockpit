@@ -48,16 +48,32 @@
       </div>
     </section>
     <section id="pane-mission" class="pane">
-      <div id="mission-cols">
-        <div class="mcol"><h3>PLANNED</h3><div id="lane-planned" class="lane"></div></div>
-        <div class="mcol"><h3>NOW</h3><div id="lane-now" class="lane"></div></div>
-        <div class="mcol"><h3>DONE</h3><div id="lane-done" class="lane"></div></div>
-        <div class="mcol needs">
-          <h3>NEEDS YOU</h3><div id="lane-needs" class="lane"></div>
-          <h3>SWARM</h3><div id="lane-kanban" class="lane"></div>
-          <h3>HISTORY <input id="hist-q" placeholder="search transcripts"></h3><div id="lane-history" class="lane"></div>
+      <div id="mission-top">
+        <div class="mtitle">Mission Control</div>
+        <div class="mtools">
+          <select id="kb-owner-filter" title="filter by owner">
+            <option value="">All owners</option>
+            <option value="you">You</option>
+            <option value="agent">Agent</option>
+          </select>
+          <button id="kb-history-toggle" class="ghost">History</button>
+          <button id="kb-refresh" class="ghost" title="reload the board">Refresh</button>
+          <button id="kb-new" class="primary">New task</button>
         </div>
       </div>
+      <div id="kb-note">Tasks are markdown files in the agent's workspace (<code id="kb-ws">tasks/</code>). The agent reads and writes them too, so work can move between you and it. Drag a card between columns to change its status.</div>
+      <div id="kanban-board">
+        <div class="kcol" data-status="planned"><div class="kcol-head"><span class="kcol-name">To do</span><span class="kcount" id="kc-planned">0</span></div><div class="kcards" id="lane-planned"></div></div>
+        <div class="kcol" data-status="now"><div class="kcol-head"><span class="kcol-name">In progress</span><span class="kcount" id="kc-now">0</span></div><div class="kcards" id="lane-now"></div></div>
+        <div class="kcol" data-status="needs"><div class="kcol-head"><span class="kcol-name">Blocked / needs you</span><span class="kcount" id="kc-needs">0</span></div><div class="kcards" id="lane-needs"></div></div>
+        <div class="kcol" data-status="done"><div class="kcol-head"><span class="kcol-name">Done</span><span class="kcount" id="kc-done">0</span></div><div class="kcards" id="lane-done"></div></div>
+      </div>
+      <div id="mission-history" class="hidden">
+        <div class="mh-head"><span>Past sessions</span><input id="hist-q" placeholder="search transcripts"><button id="mh-close" class="ghost" title="close">✕</button></div>
+        <div id="lane-history" class="lane"></div>
+      </div>
+      <div id="task-scrim" class="hidden"></div>
+      <aside id="task-drawer" class="hidden"><div id="task-drawer-inner"></div></aside>
     </section>
     <section id="pane-brain" class="pane">
       <div id="brain-bar">

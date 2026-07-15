@@ -24,7 +24,7 @@ document.querySelectorAll(".rail-btn[data-pane]").forEach((b) => {
     const pane = b.dataset.pane;
     for (const p of PANES) $("pane-" + p)?.classList.toggle("active", p === pane);
     $("pane-other").classList.toggle("active", !PANES.includes(pane));
-    if (pane === "mission") window.cockpit.loadHistory?.();
+    if (pane === "mission") openMission();
     if (pane === "brain") openBrain();
     if (pane === "files") openFiles();
     if (pane === "schedule") openSchedule();
@@ -39,6 +39,183 @@ if (railPin) {
   setPinned(localStorage.getItem("cockpit-rail-pinned") === "1");
   railPin.onclick = () => setPinned(!$("rail").classList.contains("pinned"));
 }
+
+// ---------- MISSION CONTROL: a real kanban, file-backed in the agent's workspace ----------
+// Cards are tasks/*.md the agent also reads/writes. Columns = status; each card is tagged by owner.
+// Drag a card to a column to change its status. Click a card to open a drawer (edit / comment / link).
+const KB_COLS = [
+  { status: "planned", lane: "lane-planned", count: "kc-planned" },
+  { status: "now", lane: "lane-now", count: "kc-now" },
+  { status: "needs", lane: "lane-needs", count: "kc-needs" },
+  { status: "done", lane: "lane-done", count: "kc-done" },
+];
+let kbTasks = [];
+let kbLoaded = false;
+
+async function openMission() {
+  if (!kbLoaded) { await refreshKanban(); kbLoaded = true; }
+  else refreshKanban();
+}
+async function refreshKanban() {
+  const r = await rpc("kanban.list", {});
+  if (!r.ok) return;
+  kbTasks = r.data?.tasks || [];
+  const ws = r.data?.workspace || "";
+  if (ws) $("kb-ws").textContent = ws.replace(/^\/Users\/[^/]+/, "~").replace(/^\/home\/[^/]+/, "~") + "/tasks/";
+  renderBoard();
+  // if the drawer is open, refresh its content from the latest data - but NOT while the user is
+  // typing in one of its fields (a background refresh, e.g. the agent editing another task, would
+  // otherwise rebuild the drawer and drop the in-progress keystrokes).
+  const drawer = $("task-drawer");
+  const openId = drawer?.dataset.taskId;
+  if (openId && !drawer.classList.contains("hidden")) {
+    if (drawer.contains(document.activeElement)) return; // editing in progress: leave it be
+    const t = kbTasks.find((x) => x.id === openId);
+    if (t) renderDrawer(t); else closeDrawer();
+  }
+}
+function ownerFilter() { return $("kb-owner-filter")?.value || ""; }
+function renderBoard() {
+  const filt = ownerFilter();
+  for (const col of KB_COLS) {
+    const lane = $(col.lane); lane.textContent = "";
+    const cards = kbTasks.filter((t) => t.status === col.status && (!filt || t.owner === filt));
+    $(col.count).textContent = String(cards.length);
+    if (!cards.length) { const e = document.createElement("div"); e.className = "kb-empty"; e.textContent = "-"; lane.appendChild(e); }
+    for (const t of cards) lane.appendChild(cardEl(t));
+  }
+}
+function cardEl(t) {
+  const c = document.createElement("div");
+  c.className = "kb-card"; c.draggable = true; c.dataset.taskId = t.id;
+  const title = document.createElement("div"); title.className = "kb-card-title"; title.textContent = t.title; c.appendChild(title);
+  const meta = document.createElement("div"); meta.className = "kb-card-meta";
+  const own = document.createElement("span"); own.className = "kb-owner " + t.owner; own.textContent = t.owner === "agent" ? "agent" : "you"; meta.appendChild(own);
+  if (t.files?.length) { const f = document.createElement("span"); f.className = "kb-chip"; f.textContent = "⎘ " + t.files.length; meta.appendChild(f); }
+  if (t.comments?.length) { const cm = document.createElement("span"); cm.className = "kb-chip"; cm.textContent = "💬 " + t.comments.length; meta.appendChild(cm); }
+  c.appendChild(meta);
+  c.onclick = () => openDrawer(t.id);
+  c.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", t.id); c.classList.add("dragging"); });
+  c.addEventListener("dragend", () => c.classList.remove("dragging"));
+  return c;
+}
+// drag-drop: dropping a card in a column sets its status
+function wireDnd() {
+  document.querySelectorAll("#kanban-board .kcol").forEach((colEl) => {
+    const status = colEl.dataset.status;
+    colEl.addEventListener("dragover", (e) => { e.preventDefault(); colEl.classList.add("drop-hot"); });
+    colEl.addEventListener("dragleave", () => colEl.classList.remove("drop-hot"));
+    colEl.addEventListener("drop", async (e) => {
+      e.preventDefault(); colEl.classList.remove("drop-hot");
+      const id = e.dataTransfer.getData("text/plain"); if (!id) return;
+      const t = kbTasks.find((x) => x.id === id);
+      if (!t || t.status === status) return;
+      await rpc("kanban.update", { taskId: id, status });
+      await refreshKanban();
+    });
+  });
+}
+// ---- task drawer (detail: title/status/owner/description + files + comments) ----
+function openDrawer(id) { const t = kbTasks.find((x) => x.id === id); if (t) renderDrawer(t); }
+function closeDrawer() { $("task-drawer").classList.add("hidden"); $("task-scrim").classList.add("hidden"); $("task-drawer").dataset.taskId = ""; }
+function renderDrawer(t) {
+  const d = $("task-drawer"); d.dataset.taskId = t.id;
+  const inner = $("task-drawer-inner"); inner.textContent = "";
+  const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+
+  const head = mk("div", "td-head");
+  const titleIn = mk("input", "td-title"); titleIn.value = t.title; titleIn.spellcheck = false;
+  titleIn.onchange = async () => { await rpc("kanban.update", { taskId: t.id, title: titleIn.value.trim() }); await refreshKanban(); };
+  const x = mk("button", "ghost td-x", "✕"); x.onclick = closeDrawer;
+  head.appendChild(titleIn); head.appendChild(x); inner.appendChild(head);
+
+  const row = mk("div", "td-row");
+  const st = mk("select", "td-status");
+  for (const [v, lbl] of [["planned", "To do"], ["now", "In progress"], ["needs", "Blocked / needs you"], ["done", "Done"]]) { const o = mk("option", null, lbl); o.value = v; if (t.status === v) o.selected = true; st.appendChild(o); }
+  st.onchange = async () => { await rpc("kanban.update", { taskId: t.id, status: st.value }); await refreshKanban(); };
+  const ow = mk("select", "td-owner");
+  for (const [v, lbl] of [["you", "Owner: you"], ["agent", "Owner: agent"]]) { const o = mk("option", null, lbl); o.value = v; if (t.owner === v) o.selected = true; ow.appendChild(o); }
+  ow.onchange = async () => { await rpc("kanban.update", { taskId: t.id, owner: ow.value }); await refreshKanban(); };
+  row.appendChild(st); row.appendChild(ow); inner.appendChild(row);
+
+  inner.appendChild(mk("label", "td-label", "Description"));
+  const desc = mk("textarea", "td-desc"); desc.value = t.description || ""; desc.spellcheck = false; desc.placeholder = "What is this task about?";
+  desc.onchange = async () => { await rpc("kanban.update", { taskId: t.id, description: desc.value }); await refreshKanban(); };
+  inner.appendChild(desc);
+
+  // files
+  inner.appendChild(mk("label", "td-label", "Linked files"));
+  const files = mk("div", "td-files");
+  for (const f of t.files || []) {
+    const chip = mk("div", "td-file");
+    const nm = mk("span", "td-file-name", f); nm.title = "open in Files"; nm.onclick = () => openFileFromTask(f);
+    const rm = mk("button", "ghost", "✕"); rm.onclick = async () => { await rpc("kanban.link", { taskId: t.id, path: f, remove: true }); await refreshKanban(); };
+    chip.appendChild(nm); chip.appendChild(rm); files.appendChild(chip);
+  }
+  if (!(t.files || []).length) files.appendChild(mk("div", "td-muted", "none yet"));
+  inner.appendChild(files);
+  const addFile = mk("div", "td-addrow");
+  const fin = mk("input", "td-fileinput"); fin.placeholder = "path relative to the workspace (e.g. docs/note.md)"; fin.spellcheck = false;
+  const fbtn = mk("button", "ghost", "Link file");
+  const doLink = async () => { const p = fin.value.trim(); if (!p) return; const r = await rpc("kanban.link", { taskId: t.id, path: p }); if (!r.ok) { fin.classList.add("bad"); return; } fin.value = ""; await refreshKanban(); };
+  fbtn.onclick = doLink; fin.onkeydown = (e) => { if (e.key === "Enter") doLink(); };
+  addFile.appendChild(fin); addFile.appendChild(fbtn); inner.appendChild(addFile);
+
+  // comments
+  inner.appendChild(mk("label", "td-label", "Comments"));
+  const cl = mk("div", "td-comments");
+  for (const c of t.comments || []) {
+    const cm = mk("div", "td-comment");
+    cm.appendChild(mk("div", "td-comment-head", `${c.who || "you"}${c.date ? " · " + c.date : ""}`));
+    cm.appendChild(mk("div", "td-comment-body", c.text));
+    cl.appendChild(cm);
+  }
+  if (!(t.comments || []).length) cl.appendChild(mk("div", "td-muted", "no comments yet"));
+  inner.appendChild(cl);
+  const addC = mk("div", "td-addrow");
+  const cin = mk("input", "td-cinput"); cin.placeholder = "add a comment"; cin.spellcheck = false;
+  const cbtn = mk("button", "ghost", "Comment");
+  const doComment = async () => { const txt = cin.value.trim(); if (!txt) return; await rpc("kanban.comment", { taskId: t.id, who: "you", text: txt }); cin.value = ""; await refreshKanban(); };
+  cbtn.onclick = doComment; cin.onkeydown = (e) => { if (e.key === "Enter") doComment(); };
+  addC.appendChild(cin); addC.appendChild(cbtn); inner.appendChild(addC);
+
+  // footer: delete
+  const foot = mk("div", "td-foot");
+  const del = mk("button", "ghost td-del", "Delete task");
+  del.onclick = async () => { if (!confirm("Delete this task?")) return; await rpc("kanban.remove", { taskId: t.id }); closeDrawer(); await refreshKanban(); };
+  foot.appendChild(del); inner.appendChild(foot);
+
+  d.classList.remove("hidden"); $("task-scrim").classList.remove("hidden");
+}
+function openFileFromTask(rel) {
+  // jump to the Files pane; the Files pane keys by a fileId, so just open the pane and let the user
+  // pick it. (A deep-link by path is a later nicety.)
+  const btn = document.querySelector('.rail-btn[data-pane="files"]'); btn?.click();
+}
+// New task: create a "To do" card owned by you and open the drawer with the title selected, so you
+// edit inline (Linear-style) instead of hitting a native prompt dialog.
+async function newTaskFlow() {
+  const r = await rpc("kanban.add", { title: "New task", status: "planned", owner: "you" });
+  await refreshKanban();
+  if (r.ok && r.data?.task) {
+    openDrawer(r.data.task.id);
+    const ti = $("task-drawer-inner").querySelector(".td-title");
+    if (ti) { ti.focus(); ti.select(); }
+  }
+}
+function wireMission() {
+  wireDnd();
+  $("kb-new").onclick = newTaskFlow;
+  $("kb-refresh").onclick = refreshKanban;
+  $("kb-owner-filter").onchange = renderBoard;
+  $("task-scrim").onclick = closeDrawer;
+  const histToggle = $("kb-history-toggle"), hist = $("mission-history");
+  histToggle.onclick = () => { const show = hist.classList.contains("hidden"); hist.classList.toggle("hidden", !show); if (show) window.cockpit.loadHistory?.(); };
+  $("mh-close").onclick = () => hist.classList.add("hidden");
+}
+wireMission();
+onFrame("kanbanChanged", () => { if ($("pane-mission").classList.contains("active")) refreshKanban(); });
+window.cockpit.refreshKanban = refreshKanban;
 
 // ---------- BRAIN ----------
 let graph = null, graphData = null;

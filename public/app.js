@@ -154,8 +154,6 @@ function onMessage(ev) {
     case "needsYou": needsYouCard(m); break;
     case "contextReset": { const d = document.createElement("div"); d.className = "final-meta"; d.textContent = "─── " + m.message + " ───"; transcript.appendChild(d); scroll(); break; }
     case "needsYouResolved": { const c = document.querySelector(`.needs-card[data-perm-id="${m.permId}"]`); c?.remove(); break; }
-    case "kanban": kanbanEvents(m.events || []); break;
-    case "debrief": missionDebrief(m); break;
     case "acp": {
       const u = m.update || {};
       if (u.sessionUpdate === "agent_message_chunk") {
@@ -164,11 +162,9 @@ function onMessage(ev) {
       } else if (u.sessionUpdate === "agent_thought_chunk") {
         orb.setState("thinking");
       } else if (u.sessionUpdate === "tool_call") {
-        addToolLine(u); missionTool(u); orb.setState("tool");
+        addToolLine(u); orb.setState("tool");
       } else if (u.sessionUpdate === "tool_call_update") {
-        updateToolLine(u); missionToolDone(u);
-      } else if (u.sessionUpdate === "plan") {
-        renderPlan(u.entries);
+        updateToolLine(u);
       } else if (u.sessionUpdate === "permission_answered") {
         setStatus("PERMISSION", u.optionId + " " + (u.title || ""));
       }
@@ -234,50 +230,13 @@ document.querySelectorAll(".rail-btn").forEach((b) => {
   };
 });
 
-// ---- Mission Control (P3): three lanes + Needs You + swarm + history ----
-const laneP = $("lane-planned"), laneN = $("lane-now"), laneD = $("lane-done");
-const missionRows = new Map(); // toolCallId -> NOW row
-function renderPlan(entries) {
-  laneP.textContent = "";
-  for (const e of entries || []) {
-    const el = document.createElement("div");
-    el.className = "plan-item " + (e.status || "pending");
-    el.textContent = e.content || "";
-    laneP.appendChild(el);
-  }
-}
-function missionTool(u) {
-  const el = document.createElement("div");
-  el.className = "tool-line running";
-  el.innerHTML = `<span class="t-ic"></span><span class="t-title"></span><span class="t-status">RUNNING</span>`;
-  el.querySelector(".t-ic").textContent = KIND_IC[u.kind] || "•";
-  el.querySelector(".t-title").textContent = u.title || u.kind || "tool";
-  laneN.appendChild(el);
-  missionRows.set(u.toolCallId, el);
-  laneN.scrollTop = laneN.scrollHeight;
-}
-function missionToolDone(u) {
-  const el = missionRows.get(u.toolCallId);
-  if (!el) return;
-  el.classList.remove("running");
-  el.classList.add(u.status === "failed" ? "failed" : "completed");
-  el.querySelector(".t-status").textContent = (u.status || "completed").toUpperCase();
-  laneD.appendChild(el); // move NOW -> DONE (append-only within lanes)
-  missionRows.delete(u.toolCallId);
-  laneD.scrollTop = laneD.scrollHeight;
-}
-function missionDebrief(m) {
-  const el = document.createElement("div");
-  el.className = "final-meta";
-  const kinds = Object.entries(m.byKind || {}).map(([k, n]) => `${k} x${n}`).join(", ");
-  el.textContent = `debrief: ${m.stopReason} · ${(m.elapsedMs / 1000).toFixed(1)}s · ${m.toolCount} tools${kinds ? " (" + kinds + ")" : ""}`;
-  laneD.appendChild(el);
-}
+// ---- permission prompts (rendered inline in the cockpit transcript, where you are chatting, so
+// you can answer without switching panes). Kept class "needs-card" so needsYouResolved removes it. ----
 function needsYouCard(m) {
   const card = document.createElement("div");
   card.className = "needs-card";
   card.dataset.permId = m.permId;
-  const t = document.createElement("div"); t.textContent = m.title || "Permission"; card.appendChild(t);
+  const t = document.createElement("div"); t.className = "nc-title"; t.textContent = m.title || "The agent needs your permission"; card.appendChild(t);
   const acts = document.createElement("div"); acts.className = "nc-acts";
   for (const o of m.options || []) {
     const b = document.createElement("button");
@@ -287,19 +246,9 @@ function needsYouCard(m) {
     acts.appendChild(b);
   }
   card.appendChild(acts);
-  $("lane-needs").appendChild(card);
+  transcript.appendChild(card); scroll();
 }
-function kanbanEvents(events) {
-  const lane = $("lane-kanban");
-  for (const e of events) {
-    const el = document.createElement("div");
-    el.className = "kb-event";
-    el.textContent = `${e.kind} · task ${String(e.task_id).slice(0, 8)}`;
-    lane.appendChild(el);
-  }
-  while (lane.children.length > 60) lane.removeChild(lane.firstChild);
-  lane.scrollTop = lane.scrollHeight;
-}
+// history lives in the Mission Control "History" panel (search past agent sessions)
 async function loadHistory(q) {
   const lane = $("lane-history");
   lane.textContent = "";

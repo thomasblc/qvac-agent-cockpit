@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.0 (2026-07-15) - Mission Control is a real kanban
+- **Mission Control rebuilt as a kanban board.** Cards sit in four columns by status (To do / In progress / Blocked-needs you / Done), each tagged by owner (you / agent). Create tasks with no CLI, drag a card between columns to change its status, and open a card to edit its title, description, comments, and linked files.
+- **The agent participates.** Each task is a markdown file in the agent's workspace (`tasks/*.md`); OpenClaw reads and writes the same files with its normal file tools, so work moves between you and the agent both ways. A `tasks/_FORMAT.md` documents the format for the agent. Parsing is tolerant (the agent can hand-edit) and cockpit writes never clobber agent-authored content: unmodified `## Files` / `## Comments` sections and any custom `## Section` are preserved verbatim.
+- Permission prompts now appear inline in the Cockpit transcript (where you chat) instead of a separate lane.
+- Security: task-file reads reject symlinks, hardlinks, and paths that escape the workspace jail; oversized task files are skipped; linked file paths must resolve inside the workspace.
+
 ## 3.0.1 (2026-07-15) - fix channel-setup command
 - The "Set up a new channel" button now runs `openclaw configure --section channels` (the real interactive channel-credential flow). It previously ran `openclaw onboard --section channels`, which OpenClaw rejects (`onboard` has no `--section`).
 

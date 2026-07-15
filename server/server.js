@@ -25,6 +25,7 @@ import { sample as egressSample } from "./egress.js";
 import { detectHarnesses, explainPlan } from "./onboard.js";
 import * as openclaw from "./openclaw.js";
 import * as models from "./models.js";
+import * as kanban from "./kanban.js";
 
 // OpenClaw-only build (Hermes removed for now: fully integrating a harness is a lot of work, so we
 // focus on making the OpenClaw experience complete). The harness abstraction is kept so a second
@@ -32,12 +33,13 @@ import * as models from "./models.js";
 const HARNESS_CMD = {
   openclaw: { bin: "openclaw", acpArgs: ["acp"] },
 };
-// Per-harness store capabilities. Hermes has all four store panes; OpenClaw exposes sessions +
-// skills (via its CLI) but has no kanban board or cron scheduler, so those two panes report an
-// honest "not available for this harness" instead of erroring. history/skills are always await-safe
-// (the OpenClaw adapter returns promises; the Hermes modules return values -> Promise.resolve wraps).
+// Per-harness store capabilities. OpenClaw exposes sessions + skills (via its CLI), a Gateway cron,
+// and a file-backed kanban (tasks/*.md in the workspace, managed here) - so all four are on.
+// history/skills are await-safe (the OpenClaw adapter returns promises).
 const STORE_CAPS = {
-  openclaw: { history: true, skills: true, kanban: false, cron: true }, // OpenClaw HAS a Gateway cron
+  // kanban is now a first-class, file-backed board in the workspace (tasks/*.md) that OpenClaw
+  // reads/writes via its file tools - not a harness store, so it is always on.
+  openclaw: { history: true, skills: true, kanban: true, cron: true }, // OpenClaw HAS a Gateway cron
 };
 const OPENCLAW_STORES = { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills };
 
@@ -270,8 +272,24 @@ wss.on("connection", (ws) => {
       } else if (msg.type === "history.view") {
         if (!caps.history) return reply(true, unavailable("session history"));
         reply(true, await STORES.viewSession(msg.sessionId, msg.profile || "main"));
-      } else if (msg.type === "kanban.board") {
-        reply(true, unavailable("a kanban board")); // OpenClaw has no kanban store
+      } else if (msg.type === "kanban.list") {
+        kanban.ensureFormatDoc(WORKSPACE); // so the agent knows the on-disk format
+        reply(true, { tasks: kanban.list(WORKSPACE), meta: kanban.meta, workspace: WORKSPACE });
+      } else if (msg.type === "kanban.add") {
+        const t = kanban.add(WORKSPACE, { title: msg.title, status: msg.status, owner: msg.owner, description: msg.description });
+        bump("tasks_created"); broadcast({ type: "kanbanChanged" }); reply(true, { task: t });
+      } else if (msg.type === "kanban.update") {
+        const t = kanban.update(WORKSPACE, msg.taskId, { title: msg.title, status: msg.status, owner: msg.owner, description: msg.description });
+        broadcast({ type: "kanbanChanged" }); reply(true, { task: t });
+      } else if (msg.type === "kanban.comment") {
+        const t = kanban.comment(WORKSPACE, msg.taskId, { who: msg.who, text: msg.text });
+        broadcast({ type: "kanbanChanged" }); reply(true, { task: t });
+      } else if (msg.type === "kanban.link") {
+        const t = msg.remove ? kanban.unlink(WORKSPACE, msg.taskId, { path: msg.path }) : kanban.link(WORKSPACE, msg.taskId, { path: msg.path });
+        broadcast({ type: "kanbanChanged" }); reply(true, { task: t });
+      } else if (msg.type === "kanban.remove") {
+        const r = kanban.remove(WORKSPACE, msg.taskId);
+        broadcast({ type: "kanbanChanged" }); reply(true, r);
       } else if (msg.type === "brain.index") {
         reply(true, await indexCorpus(WORKSPACE, (f) => send(ws, f)));
       } else if (msg.type === "brain.graph") {
