@@ -336,8 +336,26 @@ wss.on("connection", (ws) => {
           const info = await ensureAcp();
           reply(true, { connected: true, harness, agent: acp?.agentInfo || null, capabilities: acp?.capabilities || null, startedGateway, gateway: gateway.status() });
         } catch (e) {
-          reply(true, { connected: false, harness, error: String(e?.message || e).slice(0, 300), hint: e?.hint || null, gateway: gateway.status() });
+          const msgTxt = String(e?.message || e);
+          // Device not paired yet -> tell the client to offer one-click pairing instead of a dead error.
+          const needsPairing = harness === "openclaw" && (openclaw.pendingScope(msgTxt) || openclaw.pendingScope(e?.hint || ""));
+          reply(true, { connected: false, harness, error: msgTxt.slice(0, 300), hint: e?.hint || null, needsPairing, gateway: gateway.status() });
         }
+      } else if (msg.type === "device.pair") {
+        // Pair THIS device with the local Gateway (no CLI), then connect. The pending admin request is
+        // only created WHEN the ACP bridge attempts to connect, so: attempt (creates the request) ->
+        // approve it by exact id -> attempt again. A couple of rounds covers the scope escalation.
+        try {
+          if (!gateway.listening()) await gateway.start();
+          let connected = false, lastErr = null;
+          for (let i = 0; i < 3 && !connected; i++) {
+            try { acp?.stop(); } catch { /* */ } acp = null; connecting = null; // fresh bridge each attempt
+            try { await ensureAcp(); connected = true; break; }
+            catch (e) { lastErr = String(e?.message || e); if (!openclaw.pendingScope(lastErr) && !openclaw.pendingScope(e?.hint || "")) break; }
+            await openclaw.pairDevice(); // approve the pending request the failed attempt just created
+          }
+          reply(true, { connected, agent: acp?.agentInfo || null, capabilities: acp?.capabilities || null, error: connected ? null : (lastErr || "pairing did not complete"), gateway: gateway.status() });
+        } catch (e) { reply(true, { connected: false, error: String(e?.message || e).slice(0, 300), gateway: gateway.status() }); }
       } else if (msg.type === "gateway.status") {
         reply(true, gateway.status());
       } else if (msg.type === "gateway.start") {

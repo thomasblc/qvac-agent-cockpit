@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0 (2026-07-14) - one-click device pairing
+- **No more CLI to pair the device.** OpenClaw's ACP bridge needs this device paired with admin scope on the local Gateway (previously `openclaw onboard` in a terminal). Now: Connect detects the pending-scope state and offers a **Pair this device** button that approves it with the Gateway token and reconnects - all in the cockpit. Removes the last one-time CLI step for connecting to OpenClaw.
+- Mechanism: the pending admin request is created when the bridge attempts to connect, so pairing = attempt -> approve the exact requestId (not --latest, which never escalates past operator.pairing) -> attempt again. Idempotent when already paired.
+
 ## 2.0.0 (2026-07-14) - OpenClaw-only
 - **Focus: the cockpit is now an OpenClaw app.** Hermes was removed for now (fully integrating a harness is a lot of work; better to make one experience complete). Default + only harness is OpenClaw; the harness switcher is gone.
 - The Second Brain + Files panes now default to **OpenClaw's own workspace** (agents.defaults.workspace), not the old Hermes corpus, so they show what the agent actually touches.

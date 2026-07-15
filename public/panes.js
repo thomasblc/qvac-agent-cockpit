@@ -276,7 +276,7 @@ async function openSettings() {
   renderGateway(d.gateway);
   renderConn();
   // Connect: the one "launch it" action. Starts the OpenClaw gateway for you, then opens the session.
-  $("set-connect").onclick = async () => {
+  const doConnect = async () => {
     const btn = $("set-connect"); btn.disabled = true;
     $("set-conn-status").textContent = "connecting..."; setDot("set-conn-dot", "starting");
     $("set-conn-hint").textContent = "starting gateway + opening ACP session...";
@@ -285,9 +285,24 @@ async function openSettings() {
     if (rr.data?.gateway) renderGateway(rr.data.gateway);
     setConnected = !!rr.data?.connected;
     renderConn();
-    if (rr.data?.connected) $("set-conn-hint").textContent = `ready${rr.data.startedGateway ? " (started the gateway)" : ""}. Go to Cockpit and send a message.`;
-    else $("set-conn-hint").textContent = rr.data?.hint || ("could not connect: " + (rr.data?.error || rr.error || "unknown"));
+    const hint = $("set-conn-hint"); hint.textContent = "";
+    if (rr.data?.connected) { hint.textContent = `ready${rr.data.startedGateway ? " (started the gateway)" : ""}. Go to Cockpit and send a message.`; return; }
+    if (rr.data?.needsPairing) {
+      hint.textContent = "This device needs to be paired with OpenClaw's Gateway once. ";
+      const pb = document.createElement("button"); pb.textContent = "Pair this device"; pb.className = "";
+      pb.onclick = async () => {
+        pb.disabled = true; hint.textContent = "pairing..."; setDot("set-conn-dot", "starting");
+        const pr = await rpc("device.pair", {});
+        if (pr.data?.gateway) renderGateway(pr.data.gateway);
+        setConnected = !!pr.data?.connected; renderConn();
+        $("set-conn-hint").textContent = pr.data?.connected ? "paired + connected. Go to Cockpit and send a message." : ("pairing failed: " + (pr.data?.error || "unknown"));
+      };
+      hint.appendChild(pb);
+      return;
+    }
+    hint.textContent = rr.data?.hint || ("could not connect: " + (rr.data?.error || rr.error || "unknown"));
   };
+  $("set-connect").onclick = doConnect;
   $("set-gw-stop").onclick = async () => { const rr = await rpc("gateway.stop", {}); renderGateway(rr.data); };
   // governance (writes OpenClaw's real config)
   renderGovernance(d.governance, d);

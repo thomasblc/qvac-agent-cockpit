@@ -62,6 +62,42 @@ export function configPatch(obj) {
   });
 }
 
+// The local Gateway token (from openclaw.json). Grants admin operations like device approval, so the
+// cockpit can pair THIS device without the CLI (the user authorized local pairing).
+export function gatewayToken() { return getPath("gateway.auth.token") || null; }
+
+function run(args, timeoutMs = 20000) {
+  return new Promise((resolve) => {
+    execFile(OC, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: String(stdout || "").slice(0, 600), err: String(stderr || (err && err.message) || "").slice(0, 600) });
+    });
+  });
+}
+
+// List pending device requests (requestIds) from the local Gateway.
+async function pendingRequests(token) {
+  const r = await run(["devices", "list", "--token", token, "--json"], 12000);
+  try { const d = JSON.parse(r.out.slice(r.out.indexOf("{"), r.out.lastIndexOf("}") + 1)); return (d.pending || []).map((p) => p.requestId).filter(Boolean); }
+  catch { return []; }
+}
+
+// Approve THIS device's pending scope requests against the local Gateway with the Gateway token.
+// MUST approve the EXACT requestId (not --latest: --latest only re-grants operator.pairing and never
+// escalates to the operator.admin the ACP bridge needs). Returns {approved, count}.
+export async function pairDevice() {
+  const token = gatewayToken();
+  if (!token) return { approved: false, error: "no gateway token in openclaw.json (start the gateway once)" };
+  const ids = await pendingRequests(token);
+  let approved = 0;
+  for (const rid of ids) { const r = await run(["devices", "approve", rid, "--token", token], 15000); if (/\bApproved\b/i.test(r.out)) approved++; }
+  return { approved: approved > 0, count: approved };
+}
+export function pendingScope(errOrHint = "") {
+  // Match BOTH the raw bridge stderr ("scope upgrade pending approval") AND the rewritten hint the
+  // AcpClient surfaces ("...device paired with admin scope...", "run openclaw onboard").
+  return /scope upgrade pending|pairing-required|operator\.admin|pending approval|paired with admin scope|admin scope for the acp|openclaw onboard/i.test(String(errOrHint));
+}
+
 // Is Docker available? OpenClaw's OS-level sandbox (workspaceAccess ro/rw isolation) is Docker-based,
 // so the cockpit only offers it when Docker is present; otherwise governance = workspace + tool policy.
 export function dockerAvailable() {
