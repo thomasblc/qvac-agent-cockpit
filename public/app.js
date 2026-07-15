@@ -63,12 +63,25 @@ function startElapsed() {
 }
 function stopElapsed() { clearInterval(elapsedTimer); elapsedTimer = null; }
 
-// ---- transcript (append-only) ----
+// ---- transcript (append-only, persisted so a page reload keeps the conversation) ----
 const transcript = $("transcript");
+const CONVO_KEY = "cockpit-convo";
+let convo = [];
+try { convo = JSON.parse(localStorage.getItem(CONVO_KEY) || "[]"); } catch { convo = []; }
+function saveConvo(role, text) { convo.push({ role, text }); convo = convo.slice(-100); try { localStorage.setItem(CONVO_KEY, JSON.stringify(convo)); } catch { /* quota */ } }
+function clearConvo() { convo = []; try { localStorage.removeItem(CONVO_KEY); } catch { /* */ } transcript.textContent = ""; }
+function restoreConvo() {
+  for (const m of convo) {
+    if (m.role === "user") { const el = document.createElement("div"); el.className = "msg-user"; el.textContent = m.text; transcript.appendChild(el); }
+    else { const el = document.createElement("div"); el.className = "msg-agent md"; el.innerHTML = renderMarkdown(m.text || ""); transcript.appendChild(el); }
+  }
+  if (convo.length) { const d = document.createElement("div"); d.className = "final-meta"; d.textContent = "─── earlier in this conversation ───"; transcript.appendChild(d); scroll(); }
+}
 function addUser(text) {
   const el = document.createElement("div"); el.className = "msg-user"; el.textContent = text;
   transcript.appendChild(el); scroll();
 }
+restoreConvo(); // bring back the conversation after a page reload
 function startAgentMsg() {
   agentText = "";
   agentEl = document.createElement("div"); agentEl.className = "msg-agent streaming";
@@ -127,7 +140,7 @@ function onMessage(ev) {
       else if (m.state === "down") { setStatus("AGENT DOWN", "restarting on next message"); orb.setState("standby"); }
       break;
     case "turnStart":
-      if (!busy) { busy = true; turnStart = Date.now(); startElapsed(); addUser(m.text); startAgentMsg(); $("send").classList.add("stop"); $("send").textContent = "■"; }
+      if (!busy) { busy = true; turnStart = Date.now(); startElapsed(); addUser(m.text); saveConvo("user", m.text); startAgentMsg(); $("send").classList.add("stop"); $("send").textContent = "■"; }
       break;
     case "sttStart": setStatus("TRANSCRIBING", ""); orb.setState("listening"); break;
     case "userTranscript": break; // turnStart carries the text into the transcript
@@ -167,7 +180,7 @@ function onMessage(ev) {
       if (agentEl) {
         agentEl.classList.remove("streaming");
         const full = (m.text && m.text.trim()) ? m.text : agentText;
-        if (full && full.trim()) { agentEl.classList.add("md"); agentEl.innerHTML = renderMarkdown(full); }
+        if (full && full.trim()) { agentEl.classList.add("md"); agentEl.innerHTML = renderMarkdown(full); saveConvo("agent", full); }
       }
       const meta = document.createElement("div");
       meta.className = "final-meta";

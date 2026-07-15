@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 (2026-07-15) - persistence + reload fixes
+- The Cockpit conversation now survives a page reload (persisted locally and restored with an "earlier in this conversation" divider). No more losing your chat on refresh.
+- Your chosen model is remembered across restarts (including a local GGUF you added), instead of resetting to the default.
+- Model picker warns that small models (under ~7B) are unreliable for agent tool use - a 4B often can't set up a cron or send a message from chat. Pick 9B+ for the agent.
+- Channels card shows a clear "restart the cockpit server" hint if the running server is older than the client (a page reload is not enough to pick up a new server version).
+
 ## 2.5.0 (2026-07-15) - Channels + real cron
 - New **Channels** card in Settings: enable/disable OpenClaw's messaging channels (Telegram, Discord, WhatsApp, Slack, ...). A channel that already has a token shows "configured, off" with an Enable toggle; unconfigured ones point you to `openclaw onboard`. The cockpit never handles your tokens (they stay in OpenClaw's config, redacted here).
 - **Schedule is now a real cron manager** wired to OpenClaw's own Gateway cron (openclaw cron): list jobs with next-run + delivery channel, create a job (cron expr + message), enable/disable/run/remove. Corrects the earlier wrong "OpenClaw has no cron" - it does, and the cockpit drives it. (The agent failing to create a cron from chat was its taskflow tool erroring; the cockpit manages cron directly.)

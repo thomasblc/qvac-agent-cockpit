@@ -383,7 +383,10 @@ async function openSettings() {
       row.append(nm, state, btn); box.appendChild(row);
     }
   };
-  rpc("channels.list", {}).then((cr) => { if (cr.ok) renderChannels(cr.data.channels); });
+  rpc("channels.list", {}).then((cr) => {
+    if (cr.ok && cr.data?.channels) renderChannels(cr.data.channels);
+    else $("chan-list").innerHTML = '<div class="set-hint" style="color:var(--warn)">Channels unavailable. If you just updated, restart the cockpit server (stop <code>node server/server.js</code> and start it again) - a page reload is not enough.</div>';
+  });
   // model (restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }

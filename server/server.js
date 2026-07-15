@@ -73,7 +73,7 @@ const wss = new WebSocketServer({ server, verifyClient: (info) => originAllowed(
 const BASE_SERVE_CONFIG = process.env.COCKPIT_SERVE_CONFIG || path.join(__dirname, "..", "config", "qvac.serve.config.json");
 const serve = new ServeManager({
   port: 11434,
-  model: process.env.COCKPIT_MODEL || "qwen3.6-moe",
+  model: process.env.COCKPIT_MODEL || models.getServeModel() || "qwen3.6-moe", // remembers your choice across restarts
   configPath: models.buildServeConfig(BASE_SERVE_CONFIG),
   onState: (s) => broadcast({ type: "serveState", state: s }),
 });
@@ -87,8 +87,8 @@ const MIC_SAMPLE_RATE = 16000;
 // Bundled catalog models the Settings picker offers (defined in the base serve config with
 // tools+static). modelChoicesNow() adds any local GGUFs the user pointed the cockpit at.
 const BASE_MODEL_CHOICES = [
-  { id: "qwen3.5-4b", label: "Qwen3.5 4B (fast, ~4GB)" },
-  { id: "qwen3.5-9b", label: "Qwen3.5 9B (balanced, ~7GB)" },
+  { id: "qwen3.5-4b", label: "Qwen3.5 4B (fast, ~4GB) - weak at tools", weakTools: true },
+  { id: "qwen3.5-9b", label: "Qwen3.5 9B (balanced, ~7GB) - recommended" },
   { id: "qwen3.6-moe", label: "Qwen3.6 35B-A3B MoE (best, ~22GB)" },
 ];
 const modelChoicesNow = () => models.modelChoices(BASE_MODEL_CHOICES);
@@ -412,6 +412,7 @@ wss.on("connection", (ws) => {
         if (!modelChoicesNow().some((m) => m.id === msg.model)) return reply(false, null, "unknown model");
         broadcast({ type: "serveState", state: "starting" });
         const state = await serve.setModel(msg.model);
+        models.setServeModel(serve.model); // remember it across restarts
         broadcast({ type: "modelSwitched", model: serve.model, serveState: state });
         reply(true, { model: serve.model, serveState: state });
       } else if (msg.type === "models.scan") {

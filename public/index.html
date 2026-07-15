@@ -139,7 +139,7 @@
         </div>
         <div class="set-card">
           <h3>LOCAL MODEL</h3>
-          <p class="set-hint">The QVAC model behind the cockpit's serve (used for the graph, link scan, voice). Switching restarts it (up to a minute). Smaller = faster.</p>
+          <p class="set-hint">The QVAC model behind the serve. Switching restarts it (up to a minute) and is remembered across restarts. <b>For the agent to reliably use tools (cron, files, messaging), pick 9B or larger</b> - models under ~7B often fail tool calls (that's why a 4B can't set up a cron from chat).</p>
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
         <div class="set-card">

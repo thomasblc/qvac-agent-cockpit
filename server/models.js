@@ -30,6 +30,9 @@ function alias(name, taken = new Set()) {
 
 export function getModelsFolder() { return loadCfg().modelsFolder || null; }
 export function getLocalModels() { return loadCfg().localModels || []; } // [{alias, src, type, sizeMB}]
+// The user's chosen serve model, persisted so it survives a restart (was resetting to the default).
+export function getServeModel() { return loadCfg().serveModel || null; }
+export function setServeModel(m) { if (m) saveCfg({ serveModel: m }); }
 
 // Scan a folder (recursively, bounded) for usable single-file GGUF models. Skips multi-shard files
 // (`-00001-of-00005`) since those need every shard + a .tensors.txt companion (out of scope for v1).
