@@ -132,6 +132,14 @@
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
         <div class="set-card">
+          <h3>LOCAL MODELS</h3>
+          <p class="set-hint">Already have GGUF models on disk (LM Studio, Ollama, manual downloads)? Point at the folder and add them - no re-download. Added models show up in the picker above.</p>
+          <div class="set-row"><input id="lm-folder" type="text" placeholder="/path/to/your/models (or ~/...)" spellcheck="false"><button id="lm-scan">Scan</button></div>
+          <div id="lm-added"></div>
+          <div id="lm-found"></div>
+          <div id="lm-state" class="set-hint"></div>
+        </div>
+        <div class="set-card">
           <h3>SECOND BRAIN FOLDER</h3>
           <p class="set-hint">Which folder the Second Brain + Files panes index. Empty = the agent's working folder. Set an absolute path to point at any vault (e.g. <code>~/Documents/my-vault</code>). After changing it, open Second Brain and click Index corpus.</p>
           <div class="set-row"><input id="set-brain-root" type="text" placeholder="default: the OpenClaw workspace" spellcheck="false"><button id="set-brain-save">Set</button><button id="set-brain-reset" class="ghost">Reset</button></div>

@@ -237,3 +237,11 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 
 /* setup card log */
 #setup-log { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 10px; font: 11px var(--mono); color: var(--mut); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
+
+/* local models list */
+#lm-folder { flex:1; background: var(--elevated); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 12px var(--mono); padding: 7px 10px; }
+.lm-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font: 12px var(--mono); }
+.lm-row span { flex:1; color: var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lm-row button { padding: 4px 12px; }
+#lm-added:not(:empty) { margin-top: 10px; }
+#lm-found:not(:empty) { margin-top: 8px; max-height: 220px; overflow-y: auto; }

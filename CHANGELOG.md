@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.0 (2026-07-14) - use your own local models (no re-download)
+- New **Local models** setting: point at a folder of GGUF files you already have (LM Studio, Ollama, manual HF downloads), Scan it, and Add them - they show up in the model picker and load straight from disk, no re-download. Proven: `qvac serve` accepts an explicit `{ src: <local path>, type }` model entry, so the cockpit generates a merged serve config (bundled catalog models + your local ones) that the serve points at.
+- Also: QVAC's own downloaded models (in ~/.qvac) are already reused across runs - re-download only happens for a catalog model you have never fetched.
+- Scan is bounded and skips multi-shard GGUFs (v1); single-file GGUFs only.
+
 ## 2.2.0 (2026-07-14) - Setup wizard (install + provider, no CLI)
 - New **Setup** card that gets OpenClaw running from scratch without a terminal: it detects what's missing and offers **Install OpenClaw** (npm i -g openclaw + @qvac packages, streamed live) and **Set up QVAC provider** (installs/enables the @qvac/openclaw-plugin, writes the provider config, selects the model - the exact sequence, streamed). The card hides itself once everything is ready.
 - With one-click pairing (2.1) this means: install -> set up provider -> connect -> pair, all from the cockpit UI, no CLI.

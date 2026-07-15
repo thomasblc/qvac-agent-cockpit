@@ -353,6 +353,35 @@ async function openSettings() {
     sel.disabled = false;
     $("set-model-state").textContent = rr.ok ? `serve: ${rr.data.serveState} (${rr.data.model})` : "failed: " + rr.error;
   };
+  // ---- local models: use GGUFs already on disk, no re-download ----
+  const repopModels = (list) => { const cur = sel.value; sel.innerHTML = ""; for (const m of list) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; sel.appendChild(o); } sel.value = list.some((m) => m.id === cur) ? cur : sel.value; };
+  const renderAdded = (list) => {
+    const box = $("lm-added"); box.textContent = "";
+    for (const m of list) {
+      const row = document.createElement("div"); row.className = "lm-row";
+      const nm = document.createElement("span"); nm.textContent = `${m.alias}  (~${(m.sizeMB / 1000).toFixed(1)}GB)`; nm.title = m.src;
+      const rm = document.createElement("button"); rm.className = "ghost"; rm.textContent = "Remove";
+      rm.onclick = async () => { const rr = await rpc("models.remove", { alias: m.alias }); if (rr.ok) { renderAdded(rr.data.localModels); repopModels(rr.data.models); } };
+      row.append(nm, rm); box.appendChild(row);
+    }
+  };
+  renderAdded(d.localModels || []);
+  $("lm-folder").value = d.modelsFolder || "";
+  $("lm-scan").onclick = async () => {
+    $("lm-state").textContent = "scanning..."; $("lm-found").textContent = "";
+    const rr = await rpc("models.scan", { path: $("lm-folder").value.trim() });
+    if (!rr.ok) { $("lm-state").textContent = "failed: " + rr.error; return; }
+    const found = rr.data.models || [];
+    $("lm-state").textContent = `${found.length} GGUF file(s) found in ${rr.data.folder}`;
+    const added = new Set((d.localModels || []).map((m) => m.src));
+    for (const f of found) {
+      const row = document.createElement("div"); row.className = "lm-row";
+      const nm = document.createElement("span"); nm.textContent = `${f.name}  (~${(f.sizeMB / 1000).toFixed(1)}GB)`; nm.title = f.path;
+      const add = document.createElement("button"); add.textContent = added.has(f.path) ? "Added" : "Add"; add.disabled = added.has(f.path);
+      add.onclick = async () => { add.disabled = true; add.textContent = "..."; const ar = await rpc("models.add", { path: f.path }); if (ar.ok) { add.textContent = "Added"; renderAdded(ar.data.localModels); repopModels(ar.data.models); $("lm-state").textContent = `added ${ar.data.added.alias} - pick it in the model list above`; } else { add.textContent = "Add"; add.disabled = false; $("lm-state").textContent = "failed: " + ar.error; } };
+      row.append(nm, add); $("lm-found").appendChild(row);
+    }
+  };
   // second brain folder
   const inp = $("set-brain-root");
   inp.value = d.brainRoot || "";
