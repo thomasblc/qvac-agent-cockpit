@@ -1,7 +1,7 @@
 {
-  "name": "qvac-agent-cockpit",
-  "version": "2.6.0",
-  "description": "A styled, gamified, voice-native HUD that plugs onto OpenClaw, on local QVAC models. Install, govern (folders + permissions), launch, and watch your agent - no CLI.",
+  "name": "glass-cockpit",
+  "version": "3.0.0",
+  "description": "Glass Cockpit - a local-first control panel for the OpenClaw AI agent on QVAC on-device models. Install, govern, launch and watch your agent, no terminal.",
   "main": "server/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

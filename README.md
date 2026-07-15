@@ -1,8 +1,11 @@
-# QVAC Cockpit
+# Glass Cockpit
 
-The best interface an agent ever had. A styled, gamified, voice-native HUD that PLUGS onto an
-AI agent harness you already run (Hermes, OpenClaw), runs everything on local QVAC models,
-and never sends a byte of your prompts off-device.
+Glass Cockpit is a local-first control panel for the OpenClaw AI agent, running on QVAC on-device
+models. Install, govern (which folders + what the agent may do), launch, and watch your agent -
+no terminal - and never send a byte of your prompts off-device.
+
+> An independent, personal project. It uses QVAC (Tether's open-source on-device AI) but is **not**
+> an official QVAC product.
 
 Not another agent. The face for the one you have. People keep hand-rolling janky mission-control
 UIs for their harness; this is that layer done right.

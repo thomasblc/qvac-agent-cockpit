@@ -310,6 +310,9 @@ wss.on("connection", (ws) => {
         const r = await openclaw.setChannelEnabled(msg.id, msg.enabled);
         if (!r.ok) return reply(false, null, r.error);
         reply(true, { channels: openclaw.channels() });
+      } else if (msg.type === "channels.onboard") {
+        const r = await openclaw.openOnboardTerminal();
+        reply(r.ok, r.ok ? {} : null, r.ok ? null : (r.error || "could not open Terminal"));
       } else if (msg.type === "skills.list") {
         if (!caps.skills) return reply(true, unavailable("a skills catalog"));
         reply(true, { skills: await STORES.listSkills() });

@@ -1,16 +1,23 @@
-/* QVAC Cockpit P1. Tokens follow the deep plan's dark HUD discipline:
-   true-grey elevation ladder, ONE saturated accent reserved for live activity. */
+/* Glass Cockpit. Design system: Linear-discipline dark UI (neutral near-black surface ladder,
+   hairline borders not shadows, tight display tracking, one accent used sparingly). Accent stays
+   teal (local-AI identity). Surfaces never skip a rung: canvas -> surface -> elevated -> overlay. */
 :root {
-  --bg: #101211; --surface: #171817; --elevated: #1e211f; --overlay: #262a28;
-  --line: #2a2f2c; --fg: rgba(236,241,238,0.9); --mut: #8fa39c; --dim: #5d7a74;
-  --live: #16E3C1; --live-soft: rgba(22,227,193,0.12);
-  --warn: #F0A93C; --bad: #e0533d;
-  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --bg: #08090a; --surface: #0f1011; --elevated: #151617; --overlay: #1c1d20;
+  --line: #23252a; --line-strong: #34343a;
+  --fg: #f7f8f8; --mut: #8a8f98; --dim: #62666d;
+  --live: #16E3C1; --live-soft: rgba(22,227,193,0.10); --live-line: rgba(22,227,193,0.28);
+  --warn: #E0A33C; --bad: #e0533d;
+  --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* spacing scale (4px base) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 9999px;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist", -apple-system, "Helvetica Neue", sans-serif; overflow: hidden; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--sans); letter-spacing: -0.01em; overflow: hidden; -webkit-font-smoothing: antialiased; }
 #shell { display: flex; height: 100vh; }
+h1, h2, h3 { letter-spacing: -0.02em; }
 
 /* rail: collapsed to icons by default, expands to labels on hover (or pinned) */
 #rail { width: 56px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: stretch; padding: 10px 8px; gap: 4px; overflow: hidden; transition: width .16s ease; }
@@ -26,19 +33,19 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 #rail.pinned #rail-pin .rail-ic { transform: rotate(180deg); }
 .rail-spacer { flex: 1; }
 .rail-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); margin: 6px 0 0 12px; flex: 0 0 auto; }
-.rail-dot.healthy { background: var(--live); box-shadow: 0 0 8px var(--live); }
+.rail-dot.healthy { background: var(--live); }
 .rail-dot.degraded, .rail-dot.starting { background: var(--warn); }
 .rail-dot.down { background: var(--bad); }
 
-/* main + status line (UX law L1) */
+/* main + status line: single row, never wraps; overflow is hidden, not stacked */
 #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-#statusbar { display: flex; align-items: baseline; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface); font-family: var(--mono); font-size: 12px; }
-#status-verb { color: var(--live); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; }
-#status-target { color: var(--fg); }
-#status-elapsed { color: var(--dim); }
-.status-right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--dim); }
-.agent-name { color: var(--fg); font-weight: 600; }
-.status-sep { width: 1px; height: 16px; background: var(--line); }
+#statusbar { display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 48px; flex: 0 0 48px; border-bottom: 1px solid var(--line); background: var(--surface); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+#status-verb { color: var(--live); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; flex: 0 0 auto; }
+#status-target { color: var(--mut); overflow: hidden; text-overflow: ellipsis; }
+#status-elapsed { color: var(--dim); flex: 0 0 auto; }
+.status-right { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--dim); flex: 0 0 auto; }
+.agent-name { color: var(--fg); font-weight: 500; }
+.status-sep { width: 1px; height: 14px; background: var(--line); flex: 0 0 auto; }
 
 /* cockpit pane */
 .pane { display: none; flex: 1; min-height: 0; }
@@ -211,7 +218,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .set-choice.active { color: var(--live); border-color: rgba(22,227,193,0.5); background: var(--live-soft); }
 .set-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .set-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex: 0 0 auto; }
-.set-dot.up { background: var(--live); box-shadow: 0 0 8px var(--live); }
+.set-dot.up { background: var(--live); }
 .set-dot.down { background: var(--bad); }
 #set-gw-status { font-size: 12.5px; color: var(--mut); font-family: var(--mono); }
 .set-card button { padding: 7px 14px; border: 1px solid rgba(22,227,193,0.4); background: var(--live-soft); color: var(--live); border-radius: 8px; font: 12px var(--mono); cursor: pointer; }
@@ -222,7 +229,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 /* settings connect bar */
 .set-connbar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .set-connbar #set-conn-status { flex: 1; font-size: 12.5px; color: var(--mut); font-family: var(--mono); }
-.set-dot.starting { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.set-dot.starting { background: var(--warn); }
 #set-connect { padding: 8px 16px; }
 #set-conn-hint { margin-top: 8px; }
 
@@ -261,3 +268,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .chan-state { font: 10px var(--mono); }
 .chan-state.on { color: var(--live); } .chan-state.off { color: var(--dim); }
 .chan-row button { padding: 4px 12px; }
+
+/* schedule note */
+#sched-note { padding: 12px 14px; color: var(--mut); font-size: 12.5px; line-height: 1.5; border-bottom: 1px solid var(--line); }
+#sched-note a { color: var(--live); }

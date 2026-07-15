@@ -387,6 +387,11 @@ async function openSettings() {
     if (cr.ok && cr.data?.channels) renderChannels(cr.data.channels);
     else $("chan-list").innerHTML = '<div class="set-hint" style="color:var(--warn)">Channels unavailable. If you just updated, restart the cockpit server (stop <code>node server/server.js</code> and start it again) - a page reload is not enough.</div>';
   });
+  $("chan-onboard").onclick = async () => {
+    $("chan-onboard-hint").textContent = "opening Terminal...";
+    const rr = await rpc("channels.onboard", {});
+    $("chan-onboard-hint").textContent = rr.ok ? "Terminal opened - follow OpenClaw's prompts (enter your token there, never in the cockpit)." : ("could not open: " + (rr.error || "unknown"));
+  };
   // model (restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }

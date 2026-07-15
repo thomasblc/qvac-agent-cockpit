@@ -190,6 +190,17 @@ export function channels() {
   return out;
 }
 export function setChannelEnabled(id, on) { return configSet(`channels.${id}.enabled`, !!on, { strictJson: true }); }
+// Launch OpenClaw's interactive channel setup in a Terminal window (macOS). We do NOT run it in-process
+// because it prompts for a bot TOKEN - a credential the cockpit must never handle. The user types the
+// token directly into OpenClaw's own prompt; the cockpit just opens the door. Returns {ok}.
+export function openOnboardTerminal() {
+  return new Promise((resolve) => {
+    const bin = which("openclaw") || "openclaw";
+    const script = `${bin} onboard --section channels`;
+    execFile("/usr/bin/osascript", ["-e", `tell application "Terminal" to activate`, "-e", `tell application "Terminal" to do script ${JSON.stringify(script)}`],
+      { timeout: 8000 }, (err) => resolve({ ok: !err, error: err ? String(err.message).slice(0, 200) : null }));
+  });
+}
 
 // ---- cron: OpenClaw HAS a Gateway cron system (openclaw cron ...). Manage it from the cockpit. ----
 function withToken(args) { const t = gatewayToken(); return t ? [...args, "--token", t] : args; }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0 (2026-07-15) - rebrand to Glass Cockpit + clean redesign
+- Renamed to **Glass Cockpit** (an independent personal project; uses QVAC but is not an official QVAC product). The "QVAC Cockpit" wordmark and the "Q" mark are gone.
+- **Design overhaul toward a Linear-clean dark UI**: neutral near-black surface ladder, hairline borders instead of glows, tightened typography/tracking, a 4px spacing scale, single teal accent used sparingly. Top bar is now a single non-wrapping row.
+- **Set up a new channel without the CLI**: a button opens OpenClaw's interactive channel onboarding in a Terminal - you enter the bot token into OpenClaw's own prompt, never into the cockpit (tokens are never handled by the app).
+- Schedule pane makes clear it drives OpenClaw's real cron directly (reliable), vs asking the agent in chat (unreliable on small models that emit malformed tool calls).
+
 ## 2.6.0 (2026-07-15) - persistence + reload fixes
 - The Cockpit conversation now survives a page reload (persisted locally and restored with an "earlier in this conversation" divider). No more losing your chat on refresh.
 - Your chosen model is remembered across restarts (including a local GGUF you added), instead of resetting to the default.
