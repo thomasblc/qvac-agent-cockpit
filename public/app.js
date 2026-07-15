@@ -154,6 +154,7 @@ function onMessage(ev) {
     case "needsYou": needsYouCard(m); break;
     case "contextReset": { const d = document.createElement("div"); d.className = "final-meta"; d.textContent = "─── " + m.message + " ───"; transcript.appendChild(d); scroll(); break; }
     case "needsYouResolved": { const c = document.querySelector(`.needs-card[data-perm-id="${m.permId}"]`); c?.remove(); break; }
+    case "info": if (!busy) { setStatus("STANDBY", m.message || ""); orb.setState("standby"); } break; // e.g. "no speech detected" after a dropped utterance
     case "acp": {
       const u = m.update || {};
       if (u.sessionUpdate === "agent_message_chunk") {
@@ -300,15 +301,17 @@ let currentSource = null;
 function stopPlayback() { playQueue.length = 0; try { currentSource?.stop(); } catch { /* */ } }
 
 // ---- push-to-talk (hold Space, CORE pattern): mic -> 16k mono Int16 -> ONE binary frame ----
-let mediaStream = null, recorder = null, recChunks = [], recording = false;
+let mediaStream = null, recorder = null, recChunks = [], recording = false, micIdleTimer = null;
 async function startRec() {
   if (recording) return;
+  clearTimeout(micIdleTimer); // keep the mic stream warm between quick successive utterances
   // Barge-in (audit P1-03): interrupt playback + cancel a running turn BEFORE the busy guard, so
   // holding Space during a long turn actually stops it. Only then do we start a fresh recording.
   stopPlayback();
   if (busy) { send({ id: nextId++, type: "cancel" }); endTurn(); }
   recording = true;
-  orb.setState("listening"); setStatus("LISTENING", "release Space to send");
+  $("mic").classList.add("rec");
+  orb.setState("listening"); setStatus("LISTENING", "release Space or click ● to send");
   try {
     mediaStream = mediaStream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -318,14 +321,20 @@ async function startRec() {
     proc.onaudioprocess = (e) => { if (recording) recChunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
     srcNode.connect(proc); proc.connect(ctx.destination);
     recorder = { ctx, proc, srcNode };
-  } catch (e) { recording = false; setStatus("MIC ERROR", String(e.message || e).slice(0, 60)); }
+  } catch (e) { recording = false; $("mic").classList.remove("rec"); orb.setState("standby"); setStatus("MIC ERROR", String(e.message || e).slice(0, 60)); }
 }
 function stopRec() {
   if (!recording) return;
   recording = false;
+  $("mic").classList.remove("rec");
   const { ctx, proc, srcNode } = recorder || {};
   try { proc?.disconnect(); srcNode?.disconnect(); ctx?.close(); } catch { /* */ }
   recorder = null;
+  // release the mic after a short idle so the OS "mic in use" indicator turns off (privacy; this app
+  // sells local/sovereign), WITHOUT re-acquiring on every message (that clipped the first word). A
+  // quick follow-up utterance reuses the warm stream; startRec cancels this timer.
+  clearTimeout(micIdleTimer);
+  micIdleTimer = setTimeout(() => { try { mediaStream?.getTracks().forEach((t) => t.stop()); } catch { /* */ } mediaStream = null; }, 20000);
   const total = recChunks.reduce((n, c) => n + c.length, 0);
   if (total < 1600) { setStatus("STANDBY", ""); orb.setState("standby"); return; } // <0.1s: ignore
   const pcm = new Int16Array(total);
@@ -335,12 +344,21 @@ function stopRec() {
   if (ws?.readyState === 1) ws.send(pcm.buffer);
   setStatus("TRANSCRIBING", ""); orb.setState("thinking");
 }
+// Hold-Space push-to-talk, but ONLY when not typing in a form control - otherwise Space in any input
+// (kanban drawer, Files editor, Settings, search...) would be eaten and would start the mic + cancel
+// the running turn (review P0). Gate on the event target being an editable element.
+function typingInField(e) {
+  const el = e.target;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+}
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !e.repeat && document.activeElement !== input) { e.preventDefault(); startRec(); }
+  if (e.code === "Space" && !e.repeat && !typingInField(e)) { e.preventDefault(); startRec(); }
 });
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && document.activeElement !== input) { e.preventDefault(); stopRec(); }
+  if (e.code === "Space" && !typingInField(e) && recording) { e.preventDefault(); stopRec(); }
 });
+// visible mic button: click to start, click again to send (no keyboard needed)
+$("mic").onclick = () => { if (recording) stopRec(); else startRec(); };
 
 // bridge for panes.js (brain/files/schedule/skills)
 window.cockpit = { rpc, onFrame, loadHistory };

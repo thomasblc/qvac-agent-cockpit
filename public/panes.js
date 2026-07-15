@@ -359,7 +359,10 @@ $("files-text").addEventListener("input", () => {
   saveTimer = setTimeout(async () => {
     if (!currentFile) return;
     const w = await rpc("files.write", { fileId: currentFile, content: $("files-text").value, knownHash: currentHash });
-    if (w.data?.conflict) { $("files-banner").className = "show"; $("files-banner").textContent = "the agent changed this file; reopen to merge (your edit was NOT saved)"; currentHash = w.data.contentHash; }
+    // On conflict do NOT advance currentHash: keeping the stale hash means the next auto-save also
+    // conflicts (instead of silently succeeding and clobbering the agent's change). The user must
+    // reopen to merge (review P1 data-loss). Only advance the hash on a clean save.
+    if (w.data?.conflict) { $("files-banner").className = "show"; $("files-banner").textContent = "the agent changed this file on disk; reopen it to merge (your unsaved edit is kept in the box but not written)"; }
     else if (w.data?.contentHash) currentHash = w.data.contentHash;
   }, 1500);
 });
@@ -420,16 +423,18 @@ async function openSkills() {
   const r = await rpc("skills.list", {});
   if (r.data?.unavailable) { renderUnavailable(grid, r.data); return; }
   const skills = r.data?.skills || [];
-  // header: what this pane is
+  // header: what this pane is + the honest caveat about local-model tool use
   const note = document.createElement("div"); note.className = "skills-note";
   const ready = skills.filter((s) => s.ready).length;
-  note.textContent = `${skills.length} skills OpenClaw can use (${ready} ready). This is a read-only view of OpenClaw's skill catalog; "needs setup" means a skill is missing a binary or credential. Grouped by source.`;
+  note.innerHTML = `<b>${ready} of ${skills.length} skills are ready</b> (their CLI/credentials are present). "needs setup" tells you exactly what's missing (a CLI to install, an env var, or a channel token). `
+    + `<br><span class="skills-caveat">Note: a small local model often can't reliably <i>invoke</i> a skill on its own (it loops searching for tools). Ready just means the skill's dependencies are met. For reliable skill use in chat, run a larger agent model (Settings &rarr; Agent model).</span>`;
   grid.appendChild(note);
   // group by category (source)
   const groups = new Map();
   for (const s of skills) { const g = s.category || "other"; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
   for (const [cat, list] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-    const h = document.createElement("h3"); h.className = "skills-group"; h.textContent = `${cat}  (${list.length})`;
+    const nReady = list.filter((s) => s.ready).length;
+    const h = document.createElement("h3"); h.className = "skills-group"; h.textContent = `${cat}  (${nReady}/${list.length} ready)`;
     grid.appendChild(h);
     const wrap = document.createElement("div"); wrap.className = "skills-cards";
     for (const s of list.sort((a, b) => (b.ready - a.ready) || a.name.localeCompare(b.name))) {
@@ -440,6 +445,11 @@ async function openSkills() {
       top.append(nm, st);
       const desc = document.createElement("div"); desc.className = "skill-desc"; desc.textContent = s.description;
       card.append(top, desc);
+      if (!s.ready && s.reason) {
+        const why = document.createElement("div"); why.className = "skill-reason"; why.textContent = s.reason;
+        if (s.homepage && /^https?:\/\//i.test(s.homepage)) { const a = document.createElement("a"); a.href = s.homepage; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = " install guide"; why.appendChild(a); }
+        card.appendChild(why);
+      }
       wrap.appendChild(card);
     }
     grid.appendChild(wrap);
@@ -465,6 +475,7 @@ function renderGovernance(gov, opts) {
   const ex = $("gov-exec"); ex.textContent = "";
   const EXLABEL = { off: "Never ask (auto-run)", "on-miss": "Ask only for unlisted commands", always: "Always ask before shell" };
   for (const e of opts.execAsk) { const o = document.createElement("option"); o.value = e; o.textContent = EXLABEL[e] || e; if (e === gov.execAsk) o.selected = true; ex.appendChild(o); }
+  if ($("gov-lean")) $("gov-lean").value = gov.lean ? "on" : "off";
   const sb = $("gov-sandbox-body");
   if (opts.dockerAvailable) sb.textContent = `Docker detected. Sandbox mode: ${gov.sandboxMode}, workspace access: ${gov.workspaceAccess}. (Container isolation configurable next.)`;
   else sb.textContent = "Not available: OpenClaw's OS sandbox needs Docker, which was not detected. Governance falls back to the working folder + tool policy above.";
@@ -544,24 +555,62 @@ async function openSettings() {
   $("gov-workspace-save").onclick = () => { const w = $("gov-workspace").value.trim(); if (w) govSet({ workspace: w }, "working folder set - reconnect to use it."); };
   $("gov-profile").onchange = (e) => govSet({ toolProfile: e.target.value });
   $("gov-exec").onchange = (e) => govSet({ execAsk: e.target.value });
-  // channels (enable/disable OpenClaw's messaging channels; tokens never handled here)
+  if ($("gov-lean")) $("gov-lean").onchange = (e) => govSet({ lean: e.target.value === "on" }, "tool set updated - reconnect to apply.");
+  // channels: enable/disable + in-app credential setup. Tokens are entered by you, written straight
+  // to OpenClaw's config, never logged or echoed back. CLI-based channels fall back to the Terminal.
+  let channelFields = {};
   const renderChannels = (list) => {
     const box = $("chan-list"); box.textContent = "";
     for (const c of list) {
+      const hasForm = !!channelFields[c.id];
       const row = document.createElement("div"); row.className = "chan-row";
       const nm = document.createElement("span"); nm.className = "chan-name"; nm.textContent = c.id;
       const state = document.createElement("span"); state.className = "chan-state";
       state.textContent = c.enabled ? "enabled" : (c.configured ? "configured, off" : (c.present ? "present, no token" : "not set up"));
       state.classList.add(c.enabled ? "on" : "off");
-      const btn = document.createElement("button");
-      if (!c.configured && !c.enabled) { btn.className = "ghost"; btn.textContent = "needs openclaw onboard"; btn.disabled = true; }
-      else { btn.className = c.enabled ? "ghost" : ""; btn.textContent = c.enabled ? "Disable" : "Enable";
-        btn.onclick = async () => { btn.disabled = true; const rr = await rpc("channels.toggle", { id: c.id, enabled: !c.enabled }); if (rr.ok) renderChannels(rr.data.channels); else { btn.disabled = false; btn.textContent = "failed"; } }; }
-      row.append(nm, state, btn); box.appendChild(row);
+      const acts = document.createElement("span"); acts.className = "chan-acts";
+      // enable/disable (only once a credential exists)
+      if (c.configured || c.enabled) {
+        const tgl = document.createElement("button"); tgl.className = c.enabled ? "ghost" : ""; tgl.textContent = c.enabled ? "Disable" : "Enable";
+        tgl.onclick = async () => { tgl.disabled = true; const rr = await rpc("channels.toggle", { id: c.id, enabled: !c.enabled }); if (rr.ok) renderChannels(rr.data.channels); else { tgl.disabled = false; tgl.textContent = "failed"; } };
+        acts.appendChild(tgl);
+      }
+      // set up / edit credentials (in-app for known channels; Terminal for CLI-based ones)
+      const form = document.createElement("div"); form.className = "chan-form hidden";
+      if (hasForm) {
+        const setup = document.createElement("button"); setup.className = "ghost";
+        setup.textContent = c.configured ? "Edit token" : "Set up";
+        setup.onclick = () => form.classList.toggle("hidden");
+        acts.appendChild(setup);
+        const inputs = {};
+        for (const f of channelFields[c.id]) {
+          const label = document.createElement("label"); label.className = "chan-field";
+          const span = document.createElement("span"); span.textContent = f.label; label.appendChild(span);
+          const inp = document.createElement("input"); inp.type = "password"; inp.autocomplete = "off"; inp.spellcheck = false; inp.placeholder = f.placeholder || ""; label.appendChild(inp);
+          inputs[f.key] = inp; form.appendChild(label);
+        }
+        const save = document.createElement("button"); save.textContent = "Save & enable"; save.className = "chan-save";
+        const msg = document.createElement("span"); msg.className = "set-hint chan-form-msg";
+        save.onclick = async () => {
+          const payload = {}; for (const k in inputs) if (inputs[k].value) payload[k] = inputs[k].value;
+          if (!Object.keys(payload).length) { msg.textContent = "enter the token first"; return; }
+          save.disabled = true; msg.textContent = "saving...";
+          const rr = await rpc("channels.configure", { id: c.id, fields: payload, enable: true });
+          for (const k in inputs) inputs[k].value = ""; // clear the secret from the DOM immediately
+          save.disabled = false;
+          if (rr.ok) { renderChannels(rr.data.channels); } else { msg.textContent = rr.error || "failed"; }
+        };
+        form.append(save, msg);
+      } else if (!c.configured && !c.enabled) {
+        const hint = document.createElement("button"); hint.className = "ghost"; hint.textContent = "Set up in Terminal"; hint.title = "this channel uses its own CLI";
+        hint.onclick = () => { $("chan-onboard").click(); };
+        acts.appendChild(hint);
+      }
+      row.append(nm, state, acts); box.appendChild(row); box.appendChild(form);
     }
   };
   rpc("channels.list", {}).then((cr) => {
-    if (cr.ok && cr.data?.channels) renderChannels(cr.data.channels);
+    if (cr.ok && cr.data?.channels) { channelFields = cr.data.fields || {}; renderChannels(cr.data.channels); }
     else $("chan-list").innerHTML = '<div class="set-hint" style="color:var(--warn)">Channels unavailable. If you just updated, restart the cockpit server (stop <code>node server/server.js</code> and start it again) - a page reload is not enough.</div>';
   });
   $("chan-onboard").onclick = async () => {
@@ -569,7 +618,27 @@ async function openSettings() {
     const rr = await rpc("channels.onboard", {});
     $("chan-onboard-hint").textContent = rr.ok ? "Terminal opened - follow OpenClaw's prompts (enter your token there, never in the cockpit)." : ("could not open: " + (rr.error || "unknown"));
   };
-  // model (restart is automatic; feedback while it reloads)
+  // agent model (the model that actually answers you, via OpenClaw's plugin serve - distinct from the
+  // cockpit serve below). Changing it re-runs the provider setup (streams to the setup log) then
+  // reconnects. This is the fix for "picking a model did nothing" - the old picker only touched the
+  // cockpit serve, never the agent.
+  const am = $("set-agent-model");
+  if (am) {
+    am.textContent = "";
+    const cur = String(d.agentModel || "").replace(/^qvac\//, "");
+    for (const m of (d.agentModels || [])) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === cur) o.selected = true; am.appendChild(o); }
+    if (!cur) { const o = document.createElement("option"); o.textContent = "(not set)"; o.value = ""; o.selected = true; am.prepend(o); }
+    am.onchange = async () => {
+      const model = am.value; if (!model) return;
+      am.disabled = true; $("set-agent-model-state").textContent = `switching the agent to ${model} - this reconfigures the provider and restarts it (~1 min). See the log below.`;
+      $("setup-log").classList.remove("hidden");
+      const rr = await rpc("setup.provider", { model });
+      am.disabled = false;
+      $("set-agent-model-state").textContent = rr.ok ? `agent model set to ${model}. Click Connect to start a session on it.` : ("failed: " + (rr.error || "unknown"));
+      setConnected = false; renderConn();
+    };
+  }
+  // cockpit serve model (voice/brain; restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }
   $("set-model-state").textContent = "serve: " + d.serveState;

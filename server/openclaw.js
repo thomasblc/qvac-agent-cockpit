@@ -29,6 +29,9 @@ export function workspace() {
 export function governance() {
   const c = readConfig();
   const ad = c.agents?.defaults || {};
+  // lean local-model mode drops heavy tools (cron/messaging/browser) for weak models. It can be set
+  // per-agent (agents.defaults.experimental) or globally (experimental); read the effective value.
+  const lean = ad.experimental?.localModelLean ?? c.experimental?.localModelLean ?? false;
   return {
     workspace: workspace(),
     toolProfile: ad.tools?.profile || c.tools?.profile || "coding",
@@ -36,8 +39,11 @@ export function governance() {
     sandboxMode: ad.sandbox?.mode || "off",
     workspaceAccess: ad.sandbox?.workspaceAccess || "rw",
     model: ad.model?.primary || null,
+    lean: !!lean,
   };
 }
+// Toggle lean local-model mode (agents.defaults so it scopes to the agent, not every config consumer).
+export function setLeanMode(on) { return configSet("agents.defaults.experimental.localModelLean", !!on, { strictJson: true }); }
 
 // `openclaw config set <dotpath> <value>` (value passed raw; strings without --strict-json). Returns
 // {ok, out|error}. For JSON values pass strictJson:true.
@@ -143,7 +149,9 @@ export async function installOpenClaw(onLine) {
 
 // Wire the QVAC provider into OpenClaw (the exact sequence proven to work), streaming each step.
 // Idempotent: safe to re-run. Model defaults to qwen3.5-9b.
-export async function setupProvider(onLine, { model = "qwen3.5-9b", port = 11434 } = {}) {
+// port 11455 (NOT 11434): the cockpit's own `qvac serve` (voice/brain) owns 11434, so the OpenClaw
+// plugin's separate agent serve must use a different port or the two collide on startup.
+export async function setupProvider(onLine, { model = "qwen3.5-9b", port = 11455 } = {}) {
   const qvacBin = which("qvac") || "qvac";
   const steps = [
     ["plugins", "install", "@qvac/openclaw-plugin", "--force"],
@@ -189,7 +197,49 @@ export function channels() {
   }
   return out;
 }
-export function setChannelEnabled(id, on) { return configSet(`channels.${id}.enabled`, !!on, { strictJson: true }); }
+// A channel id becomes part of a config dot-path, so it must be a plain slug (no dots, no __proto__,
+// no separators) to avoid writing an unintended/config-polluting key.
+const CHAN_ID = /^[a-z0-9_-]{1,40}$/i;
+function validChannelId(id) { return typeof id === "string" && CHAN_ID.test(id) && id !== "__proto__" && id !== "constructor" && id !== "prototype"; }
+export function setChannelEnabled(id, on) {
+  if (!validChannelId(id)) return Promise.resolve({ ok: false, error: "invalid channel id" });
+  return configSet(`channels.${id}.enabled`, !!on, { strictJson: true });
+}
+
+// Per-channel credential fields the cockpit can set directly (the exact config keys OpenClaw expects).
+// Everything is local and OpenClaw stores these in ~/.openclaw/openclaw.json anyway, so entering a
+// token in the cockpit (the USER types it, we write it via `config set` argv, never log/echo it) is
+// safe. Channels not listed here are CLI-based (wacli/imsg/...) and use the Terminal onboarding.
+export const CHANNEL_FIELDS = {
+  telegram: [{ key: "botToken", label: "Bot token (from @BotFather)", placeholder: "123456:ABC-..." }],
+  discord: [{ key: "token", label: "Bot token", placeholder: "your Discord bot token" }],
+  slack: [{ key: "botToken", label: "Bot token (xoxb-...)", placeholder: "xoxb-..." }, { key: "appToken", label: "App-level token (xapp-...)", placeholder: "xapp-..." }],
+};
+// Write the given credential fields for a channel, then enable it. The token value is passed as a
+// single argv element (no shell) and is never logged. Returns {ok} / {ok:false,error} (error is
+// OpenClaw's stderr, which does not echo the token).
+export async function configureChannel(id, fields = {}, { enable = true } = {}) {
+  if (!validChannelId(id)) return { ok: false, error: "invalid channel id" };
+  const spec = CHANNEL_FIELDS[id];
+  if (!spec) return { ok: false, error: `${id} is configured through its own CLI - use "Set up in Terminal".` };
+  let wroteOne = false;
+  for (const f of spec) {
+    const raw = fields[f.key];
+    if (raw == null || String(raw).trim() === "") continue; // partial edits allowed (e.g. only re-set the token)
+    const v = String(raw).trim();
+    const r = await configSet(`channels.${id}.${f.key}`, v);
+    if (!r.ok) {
+      // execFile's error string can echo the full command (INCLUDING the token argv) - scrub the
+      // secret before it ever leaves this function (it must not reach the client or any log).
+      const safe = String(r.error || "").split(v).join("***");
+      return { ok: false, error: `could not save ${f.key}: ${safe.slice(0, 160)}` };
+    }
+    wroteOne = true;
+  }
+  if (!wroteOne) return { ok: false, error: "no value provided" };
+  if (enable) { const r = await setChannelEnabled(id, true); if (!r.ok) return { ok: false, error: r.error }; }
+  return { ok: true };
+}
 // Launch OpenClaw's interactive channel setup in a Terminal window (macOS). We do NOT run it in-process
 // because it prompts for a bot TOKEN - a credential the cockpit must never handle. The user types the
 // token directly into OpenClaw's own prompt; the cockpit just opens the door. Returns {ok}.
@@ -223,6 +273,9 @@ export async function cronAdd({ cron, message, channel = "last", announce = true
 }
 export async function cronAction(verb, id) {
   if (!["enable", "disable", "rm", "run"].includes(verb) || !id) return { ok: false, error: "bad cron action" };
+  // id is a job id from the client; a value like "--all" would be reparsed as a flag by the CLI
+  // (e.g. `cron rm --all` wipes everything). Require a plain id token (review P2 arg-injection).
+  if (typeof id !== "string" || id.startsWith("-") || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return { ok: false, error: "invalid job id" };
   return run(withToken(["cron", verb, id]), 15000);
 }
 

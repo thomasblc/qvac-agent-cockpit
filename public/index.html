@@ -11,13 +11,13 @@
   <!-- left rail: the six panes (P1 wires Cockpit; the rest are placeholders lighting up per phase) -->
   <nav id="rail">
     <div class="rail-logo"><span class="rail-ic">◈</span><span class="rail-label">Glass Cockpit</span></div>
-    <button class="rail-btn active" data-pane="cockpit"><span class="rail-ic">◈</span><span class="rail-label">Cockpit</span></button>
-    <button class="rail-btn" data-pane="mission"><span class="rail-ic">▤</span><span class="rail-label">Mission Control</span></button>
-    <button class="rail-btn" data-pane="brain"><span class="rail-ic">⌬</span><span class="rail-label">Second Brain</span></button>
-    <button class="rail-btn" data-pane="files"><span class="rail-ic">≡</span><span class="rail-label">Files</span></button>
-    <button class="rail-btn" data-pane="schedule"><span class="rail-ic">◷</span><span class="rail-label">Schedule</span></button>
-    <button class="rail-btn" data-pane="skills"><span class="rail-ic">✦</span><span class="rail-label">Skills</span></button>
-    <button class="rail-btn" data-pane="settings"><span class="rail-ic">⚙</span><span class="rail-label">Settings</span></button>
+    <button class="rail-btn active" data-pane="cockpit" title="Cockpit"><span class="rail-ic">◈</span><span class="rail-label">Cockpit</span></button>
+    <button class="rail-btn" data-pane="mission" title="Mission Control"><span class="rail-ic">▤</span><span class="rail-label">Mission Control</span></button>
+    <button class="rail-btn" data-pane="brain" title="Second Brain"><span class="rail-ic">⌬</span><span class="rail-label">Second Brain</span></button>
+    <button class="rail-btn" data-pane="files" title="Files"><span class="rail-ic">≡</span><span class="rail-label">Files</span></button>
+    <button class="rail-btn" data-pane="schedule" title="Schedule"><span class="rail-ic">◷</span><span class="rail-label">Schedule</span></button>
+    <button class="rail-btn" data-pane="skills" title="Skills"><span class="rail-ic">✦</span><span class="rail-label">Skills</span></button>
+    <button class="rail-btn" data-pane="settings" title="Settings"><span class="rail-ic">⚙</span><span class="rail-label">Settings</span></button>
     <div class="rail-spacer"></div>
     <button id="rail-pin" class="rail-btn" title="Pin the sidebar open"><span class="rail-ic">»</span><span class="rail-label">Collapse</span></button>
     <div id="serve-dot" class="rail-dot" title="serve state"></div>
@@ -43,7 +43,8 @@
       <div id="orb-wrap"><canvas id="orb-canvas"></canvas></div>
       <div id="transcript"></div>
       <div id="input-row">
-        <textarea id="input" rows="1" placeholder="Ask your agent... (Enter to send)"></textarea>
+        <textarea id="input" rows="1" placeholder="Ask your agent... (Enter to send, or ● to speak)"></textarea>
+        <button id="mic" title="Record a voice message (transcribed locally). Or hold Space.">●</button>
         <button id="send" title="send">↑</button>
       </div>
     </section>
@@ -133,6 +134,10 @@
           </div>
           <div id="set-conn-hint" class="set-hint"></div>
           <div class="set-row" style="margin-top:10px"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">gateway: checking...</span><button id="set-gw-stop" class="ghost">Stop gateway</button></div>
+          <label class="set-field" style="margin-top:12px"><span>Agent model <em>(what actually answers you)</em></span>
+            <select id="set-agent-model"></select>
+          </label>
+          <div id="set-agent-model-state" class="set-hint">Bigger models are far more reliable at using tools/skills. Changing this restarts the agent (about a minute).</div>
         </div>
         <div class="set-card">
           <h3>ACCESS &amp; PERMISSIONS</h3>
@@ -146,18 +151,24 @@
           <label class="set-field"><span>Ask before running shell commands</span>
             <select id="gov-exec"></select>
           </label>
+          <label class="set-field"><span>Lean local-model mode <em>(for small models)</em></span>
+            <select id="gov-lean">
+              <option value="on">On - drop heavy tools (cron, messaging, browser) to keep small models fast</option>
+              <option value="off">Off - keep all tools so the agent can cron/message from chat (needs a capable model)</option>
+            </select>
+          </label>
           <div id="gov-sandbox" class="set-field"><span>OS sandbox <em>(container isolation)</em></span><div id="gov-sandbox-body" class="set-hint"></div></div>
           <div id="gov-state" class="set-hint"></div>
         </div>
         <div class="set-card">
           <h3>CHANNELS</h3>
-          <p class="set-hint">Where OpenClaw can message you (and receive from you). Enable a channel that's already set up. Cron reminders and agent messages get delivered here. To add a new channel, click below - it opens OpenClaw's own setup where you enter the bot token (the cockpit never handles your tokens).</p>
+          <p class="set-hint">Where OpenClaw can message you (and receive from you). Cron reminders and agent messages get delivered here. For Telegram / Discord / Slack, paste the bot token right here (it's written to OpenClaw's local config and never logged). Other channels use their own CLI via the Terminal button.</p>
           <div id="chan-list"></div>
-          <div class="set-row" style="margin-top:12px"><button id="chan-onboard" class="ghost">Set up a new channel</button><span id="chan-onboard-hint" class="set-hint" style="margin:0"></span></div>
+          <div class="set-row" style="margin-top:12px"><button id="chan-onboard" class="ghost">Set up in Terminal (CLI channels)</button><span id="chan-onboard-hint" class="set-hint" style="margin:0"></span></div>
         </div>
         <div class="set-card">
-          <h3>LOCAL MODEL</h3>
-          <p class="set-hint">The QVAC model behind the serve. Switching restarts it (up to a minute) and is remembered across restarts. <b>For the agent to reliably use tools (cron, files, messaging), pick 9B or larger</b> - models under ~7B often fail tool calls (that's why a 4B can't set up a cron from chat).</p>
+          <h3>COCKPIT MODEL</h3>
+          <p class="set-hint">The QVAC model behind the <b>cockpit's own serve</b> - it powers voice transcription, Second Brain embeddings and search. This is <b>not</b> the agent's model (set that under Agent &middot; OpenClaw above). Switching restarts the cockpit serve (up to a minute) and is remembered.</p>
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
         <div class="set-card">

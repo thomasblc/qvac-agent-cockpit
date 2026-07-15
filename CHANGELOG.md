@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.2.0 (2026-07-15) - reliability hardening + honest skills, in-app channels, agent-model control
+Fixes from a full multi-agent code review (the app had too many silent failures).
+- **Stability**: the server no longer crashes on a dropped socket. It had no `ws`/`wss`/process error handlers, so a closed tab or reset connection could take the whole server down (the likely cause of "it keeps dying"). Added per-connection and process-level guards.
+- **Security**: the WebSocket origin gate is now pinned to the cockpit's exact port (was any localhost port, which let another local page drive the privileged socket). Channel-id and cron-job-id inputs are validated (no config-key or argument injection). Bot tokens are scrubbed from any error output.
+- **Skills pane is now honest**: each skill shows whether it's ready and, if not, exactly what's missing (a CLI to install, an env var, or a channel token) with an install link. Plus a note that small local models often can't drive skill invocation on their own.
+- **Set up channels in-app**: paste a Telegram / Discord / Slack bot token directly in Settings (written to OpenClaw's local config, never logged or echoed). CLI-based channels still use the Terminal button.
+- **Agent model vs cockpit model**: Settings now has an "Agent model" picker that actually changes the model that answers you (was only changing the cockpit's own voice/search serve). The old picker was renamed "Cockpit model" to end the confusion.
+- **Lean-mode toggle**: turn OpenClaw's lean local-model mode off so the agent keeps its cron/messaging/browser tools (it drops them by default for small models - that's why cron/messaging from chat failed). On = faster for tiny models.
+- **Voice**: a visible mic button (click to record, click to send) - voice was hold-Space only and undiscoverable. Space no longer hijacks typing in other fields, dropped utterances reset the status, and the mic releases after idle.
+- Files editor no longer overwrites the agent's concurrent change after a save conflict; the gateway can't be double-started; the plugin serve uses a non-colliding port.
+
 ## 3.1.0 (2026-07-15) - Mission Control is a real kanban
 - **Mission Control rebuilt as a kanban board.** Cards sit in four columns by status (To do / In progress / Blocked-needs you / Done), each tagged by owner (you / agent). Create tasks with no CLI, drag a card between columns to change its status, and open a card to edit its title, description, comments, and linked files.
 - **The agent participates.** Each task is a markdown file in the agent's workspace (`tasks/*.md`); OpenClaw reads and writes the same files with its normal file tools, so work moves between you and the agent both ways. A `tasks/_FORMAT.md` documents the format for the agent. Parsing is tolerant (the agent can hand-edit) and cockpit writes never clobber agent-authored content: unmodified `## Files` / `## Comments` sections and any custom `## Section` are preserved verbatim.

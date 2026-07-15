@@ -88,6 +88,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 #input:focus { border-color: var(--live); outline: none; box-shadow: 0 0 0 2px var(--live-soft); }
 #send { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--live); color: #04140f; border: none; font-size: 16px; cursor: pointer; }
 #send.stop { background: var(--bad); color: #fff; }
+#mic { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--elevated); color: var(--mut); border: 1px solid var(--line); font-size: 13px; cursor: pointer; transition: color .12s, border-color .12s; }
+#mic:hover { color: var(--fg); border-color: var(--line-strong); }
+#mic.rec { background: var(--bad); color: #fff; border-color: var(--bad); animation: micpulse 1s ease-in-out infinite; }
+@keyframes micpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
 .placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--dim); width: 100%; }
 
 /* mission control */
@@ -227,6 +231,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .skill-status.ok { color: var(--live); background: var(--live-soft); }
 .skill-status.warn { color: var(--warn); border: 1px solid rgba(240,169,60,0.3); }
 .skill-desc { color: var(--mut); font-size: 12px; margin-top: 5px; line-height: 1.45; }
+.skills-caveat { color: var(--dim); font-size: 12px; }
+.skill-reason { color: var(--warn); font: 11px var(--mono); margin-top: 6px; }
+.skill-reason a { color: var(--live); margin-left: 4px; }
 .proposal-card { background: var(--elevated); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 12px; margin-bottom: 7px; }
 .proposal-card .pc-reason { color: var(--mut); font-style: italic; margin: 5px 0; }
 .proposal-card button { font: 600 10px var(--mono); padding: 4px 11px; border-radius: 7px; border: none; background: var(--live); color: #04140f; cursor: pointer; margin-right: 6px; }
@@ -325,6 +332,15 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .chan-state { font: 10px var(--mono); }
 .chan-state.on { color: var(--live); } .chan-state.off { color: var(--dim); }
 .chan-row button { padding: 4px 12px; }
+.chan-acts { display: flex; gap: 6px; align-items: center; }
+.chan-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 14px; border-bottom: 1px solid var(--line); }
+.chan-form.hidden { display: none; }
+.chan-field { display: flex; flex-direction: column; gap: 4px; }
+.chan-field span { font: 11px var(--mono); color: var(--mut); }
+.chan-field input { background: var(--elevated); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--fg); font: 12.5px var(--mono); padding: 8px 10px; }
+.chan-field input:focus { outline: none; border-color: var(--live-line); }
+.chan-save { align-self: flex-start; }
+.chan-form-msg { margin: 0; }
 
 /* schedule note */
 #sched-note { padding: 12px 14px; color: var(--mut); font-size: 12.5px; line-height: 1.5; border-bottom: 1px solid var(--line); }

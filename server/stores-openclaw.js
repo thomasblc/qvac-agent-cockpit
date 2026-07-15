@@ -150,17 +150,32 @@ export function viewSession(sessionId /*, profile */) {
 
 // Skills via `openclaw skills list --json`. OpenClaw has no per-skill usage counter (no .usage.json),
 // so useCount/lastUsedAt are null; we surface readiness (eligible) + source instead.
+// Turn OpenClaw's `missing` object into a short human reason a skill is not usable yet.
+function skillBlockReason(s) {
+  if (s.disabled) return "disabled";
+  if (s.blockedByAllowlist) return "blocked by the tool allowlist";
+  const m = s.missing || {};
+  const bins = [...(m.bins || []), ...(m.anyBins || [])];
+  if (bins.length) return `needs CLI: ${bins.join(" / ")}`;
+  if ((m.env || []).length) return `needs env var: ${m.env.join(", ")}`;
+  if ((m.config || []).length) return `needs config: ${m.config.join(", ")}`;
+  if ((m.os || []).length) return `needs OS: ${m.os.join(", ")}`;
+  return null;
+}
 export function listSkills() {
   return ocJson(["skills", "list"], 20000).then((d) => {
     const out = (d.skills || []).map((s) => ({
       name: s.name,
       category: s.source || (s.bundled ? "openclaw-bundled" : "skill"),
-      description: String(s.description || "").slice(0, 140),
+      description: String(s.description || "").slice(0, 200),
       version: s.version || null,
       useCount: 0,
       lastUsedAt: null,
       pinned: false,
       ready: s.eligible === true,
+      modelVisible: s.modelVisible === true, // whether the agent can actually see/use it in a turn
+      reason: skillBlockReason(s),            // why it is not ready (missing binary / env / config)
+      homepage: s.homepage || null,
       emoji: s.emoji || null,
     }));
     // ready skills first, then alphabetical

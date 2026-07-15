@@ -1,6 +1,6 @@
 {
   "name": "glass-cockpit",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Glass Cockpit - a local-first control panel for the OpenClaw AI agent on QVAC on-device models. Install, govern, launch and watch your agent, no terminal.",
   "main": "server/server.js",
   "scripts": {

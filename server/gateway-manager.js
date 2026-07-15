@@ -30,7 +30,15 @@ export class GatewayManager {
   }
 
   // Start the gateway if it is not already listening. Resolves once the port is up (or times out).
+  // Single-flight (_inflight): two concurrent connects (two tabs, connect + pair) would otherwise both
+  // see listening()===false and spawn a second detached gateway, orphaning one and clobbering the pidfile.
   async start() {
+    if (this._inflight) return this._inflight;
+    if (this.listening()) return this.status();
+    this._inflight = this._start().finally(() => { this._inflight = null; });
+    return this._inflight;
+  }
+  async _start() {
     if (this.listening()) return this.status();
     mkdirSync(DIR, { recursive: true });
     const out = openSync(LOG, "a");
