@@ -196,7 +196,9 @@ export function setChannelEnabled(id, on) { return configSet(`channels.${id}.ena
 export function openOnboardTerminal() {
   return new Promise((resolve) => {
     const bin = which("openclaw") || "openclaw";
-    const script = `${bin} onboard --section channels`;
+    // `openclaw configure --section channels` is the interactive channel-credential flow.
+    // (`openclaw onboard` has no --section; it is the full guided setup.)
+    const script = `${bin} configure --section channels`;
     execFile("/usr/bin/osascript", ["-e", `tell application "Terminal" to activate`, "-e", `tell application "Terminal" to do script ${JSON.stringify(script)}`],
       { timeout: 8000 }, (err) => resolve({ ok: !err, error: err ? String(err.message).slice(0, 200) : null }));
   });

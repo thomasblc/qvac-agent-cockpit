@@ -1,5 +1,8 @@
 # Changelog
 
+## 3.0.1 (2026-07-15) - fix channel-setup command
+- The "Set up a new channel" button now runs `openclaw configure --section channels` (the real interactive channel-credential flow). It previously ran `openclaw onboard --section channels`, which OpenClaw rejects (`onboard` has no `--section`).
+
 ## 3.0.0 (2026-07-15) - rebrand to Glass Cockpit + clean redesign
 - Renamed to **Glass Cockpit** (an independent personal project; uses QVAC but is not an official QVAC product). The "QVAC Cockpit" wordmark and the "Q" mark are gone.
 - **Design overhaul toward a Linear-clean dark UI**: neutral near-black surface ladder, hairline borders instead of glows, tightened typography/tracking, a 4px spacing scale, single teal accent used sparingly. Top bar is now a single non-wrapping row.
