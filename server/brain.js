@@ -32,24 +32,13 @@ export function setBrainRoot(p) {
 }
 
 export function corpusRoots(workspace) {
-  // A chosen vault takes over entirely (+ the agent's own workspace, so its writes still show).
-  if (brainRoot) {
-    const roots = [{ root: brainRoot, tag: "vault" }];
-    if (workspace && resolve(workspace) !== resolve(brainRoot)) roots.push({ root: workspace, tag: "workspace" });
-    return roots.filter((r) => existsSync(r.root));
-  }
-  const roots = [
-    { root: H + "/.hermes", only: ["SOUL.md"] },
-    { root: H + "/.hermes/memories" },
-    ...(existsSync(H + "/.hermes/profiles") ? readdirSync(H + "/.hermes/profiles").flatMap((p) => [
-      { root: `${H}/.hermes/profiles/${p}`, only: ["SOUL.md"], tag: p },
-      { root: `${H}/.hermes/profiles/${p}/memories`, tag: p },
-      { root: `${H}/.hermes/profiles/${p}/plans`, tag: p },
-      { root: `${H}/.hermes/profiles/${p}/workspace`, tag: p },
-    ]) : []),
-    { root: H + "/.hermes/kanban/workspaces" },
-    ...(workspace ? [{ root: workspace, tag: "workspace" }] : []),
-  ];
+  // OpenClaw-only build: the corpus is the agent's workspace by default (what it reads/writes), or a
+  // chosen vault if the user picked one. (The old Hermes-specific ~/.hermes roots were removed.)
+  const root = brainRoot || workspace;
+  if (!root) return [];
+  const roots = [{ root, tag: brainRoot ? "vault" : "workspace" }];
+  // If a vault is chosen AND differs from the agent workspace, index both so agent writes still show.
+  if (brainRoot && workspace && resolve(workspace) !== resolve(brainRoot)) roots.push({ root: workspace, tag: "workspace" });
   return roots.filter((r) => existsSync(r.root));
 }
 

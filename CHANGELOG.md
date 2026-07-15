@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 (2026-07-14) - OpenClaw-only
+- **Focus: the cockpit is now an OpenClaw app.** Hermes was removed for now (fully integrating a harness is a lot of work; better to make one experience complete). Default + only harness is OpenClaw; the harness switcher is gone.
+- The Second Brain + Files panes now default to **OpenClaw's own workspace** (agents.defaults.workspace), not the old Hermes corpus, so they show what the agent actually touches.
+- New **Access & Permissions** panel that writes OpenClaw's real config with no terminal: the agent's **working folder**, the **tool profile** (minimal/coding/messaging/full), **ask-before-shell** (off/on-miss/always), and the **OS sandbox** (surfaced; container isolation needs Docker, detected automatically). Enums are allow-listed app-side; `~` is expanded.
+- Settings simplified to the OpenClaw flow: one **Connect** (auto-starts the Gateway) + gateway status, governance, local model, and the vault folder.
+
 ## 1.5.0 (2026-07-14)
 - **Second Brain folder is now choosable** (Settings). The Second Brain + Files panes were hardcoded to the Hermes corpus (~/.hermes) + workspace, so they showed Hermes notes even when connected to OpenClaw. Set an absolute path (a vault, ~/.openclaw/workspace, anything) and both panes index that folder recursively, Obsidian/Second-Self style. Reset returns to the default. Persisted in ~/.qvac-cockpit/config.json; the corpus path jail still applies to the chosen root.
 

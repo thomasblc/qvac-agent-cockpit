@@ -94,30 +94,40 @@
     <section id="pane-settings" class="pane">
       <div id="settings-wrap">
         <div class="set-card">
-          <h3>AGENT</h3>
-          <p class="set-hint">Pick the agent the cockpit drives, then connect. For OpenClaw the Gateway is started for you.</p>
-          <div id="set-harness" class="set-choices"></div>
+          <h3>AGENT &middot; OPENCLAW</h3>
+          <p class="set-hint">The cockpit drives OpenClaw on a local QVAC model. Connect starts the Gateway and opens the session for you. <span id="set-install-hint"></span></p>
           <div class="set-connbar">
             <span id="set-conn-dot" class="set-dot"></span>
             <span id="set-conn-status">not connected</span>
             <button id="set-connect">Connect</button>
           </div>
           <div id="set-conn-hint" class="set-hint"></div>
+          <div class="set-row" style="margin-top:10px"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">gateway: checking...</span><button id="set-gw-stop" class="ghost">Stop gateway</button></div>
         </div>
-        <div class="set-card" id="set-gw-card">
-          <h3>OPENCLAW GATEWAY</h3>
-          <p class="set-hint">Started automatically when you connect to OpenClaw. If the bridge reports a pending scope, pair this device once with <code>openclaw onboard</code>.</p>
-          <div class="set-row"><span id="set-gw-dot" class="set-dot"></span><span id="set-gw-status">checking...</span><button id="set-gw-stop" class="ghost">Stop</button></div>
+        <div class="set-card">
+          <h3>ACCESS &amp; PERMISSIONS</h3>
+          <p class="set-hint">What the agent may do and where. These write OpenClaw's own policy - no terminal needed.</p>
+          <label class="set-field"><span>Working folder <em>(the agent's read/write root)</em></span>
+            <div class="set-row"><input id="gov-workspace" type="text" spellcheck="false"><button id="gov-workspace-save">Set</button></div>
+          </label>
+          <label class="set-field"><span>Tool profile <em>(what capabilities the agent has)</em></span>
+            <select id="gov-profile"></select>
+          </label>
+          <label class="set-field"><span>Ask before running shell commands</span>
+            <select id="gov-exec"></select>
+          </label>
+          <div id="gov-sandbox" class="set-field"><span>OS sandbox <em>(container isolation)</em></span><div id="gov-sandbox-body" class="set-hint"></div></div>
+          <div id="gov-state" class="set-hint"></div>
         </div>
         <div class="set-card">
           <h3>LOCAL MODEL</h3>
-          <p class="set-hint">The QVAC model behind the serve. Switching restarts the serve automatically (up to a minute). Smaller = faster.</p>
+          <p class="set-hint">The QVAC model behind the cockpit's serve (used for the graph, link scan, voice). Switching restarts it (up to a minute). Smaller = faster.</p>
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
         <div class="set-card">
           <h3>SECOND BRAIN FOLDER</h3>
-          <p class="set-hint">Which folder the Second Brain + Files panes index. Leave empty for the default (the harness's own notes). Set an absolute path to point at any vault (e.g. <code>~/Documents/my-vault</code> or <code>~/.openclaw/workspace</code>). After changing it, open Second Brain and click Index corpus.</p>
-          <div class="set-row"><input id="set-brain-root" type="text" placeholder="default: Hermes corpus + workspace" spellcheck="false"><button id="set-brain-save">Set</button><button id="set-brain-reset" class="ghost">Reset</button></div>
+          <p class="set-hint">Which folder the Second Brain + Files panes index. Empty = the agent's working folder. Set an absolute path to point at any vault (e.g. <code>~/Documents/my-vault</code>). After changing it, open Second Brain and click Index corpus.</p>
+          <div class="set-row"><input id="set-brain-root" type="text" placeholder="default: the OpenClaw workspace" spellcheck="false"><button id="set-brain-save">Set</button><button id="set-brain-reset" class="ghost">Reset</button></div>
           <div id="set-brain-state" class="set-hint"></div>
         </div>
       </div>

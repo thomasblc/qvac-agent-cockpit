@@ -244,53 +244,42 @@ async function openSkills() {
   }
 }
 
-// ---------- SETTINGS (pick a harness -> connect; gateway auto; model) ----------
-let setChosen = null;      // harness the user is looking at (may differ from connected until Connect)
-let setConnected = false;  // is the ACP session live?
+// ---------- SETTINGS (OpenClaw-only: connect + governance + model + vault) ----------
+let setConnected = false;
 function setDot(el, cls) { $(el).className = "set-dot " + cls; }
 function renderConn() {
   setDot("set-conn-dot", setConnected ? "up" : "down");
-  $("set-conn-status").textContent = setConnected ? `connected to ${setChosen}` : `${setChosen} selected - not connected`;
-  const btn = $("set-connect");
-  btn.textContent = setConnected ? "Reconnect" : `Connect to ${setChosen === "openclaw" ? "OpenClaw" : "Hermes"}`;
+  $("set-conn-status").textContent = setConnected ? "connected to OpenClaw" : "not connected";
+  $("set-connect").textContent = setConnected ? "Reconnect" : "Connect";
 }
 function renderGateway(g) {
   setDot("set-gw-dot", g?.up ? "up" : "down");
-  $("set-gw-status").textContent = g?.up ? `running on :${g.port}${g.pid ? " (pid " + g.pid + ")" : ""}` : "not running";
-  // gateway card only matters for OpenClaw
-  $("set-gw-card").style.display = setChosen === "openclaw" ? "" : "none";
+  $("set-gw-status").textContent = "gateway: " + (g?.up ? `running :${g.port}${g.pid ? " (pid " + g.pid + ")" : ""}` : "not running");
 }
-async function selectHarness(h, hbox) {
-  if (h === setChosen) return;
-  setChosen = h; setConnected = false;
-  hbox.querySelectorAll(".set-choice").forEach((x) => x.classList.toggle("active", x.dataset.h === h));
-  $("set-conn-hint").textContent = "";
-  const rr = await rpc("harness.set", { harness: h });    // server drops the old session; connect re-establishes
-  if (rr.ok) renderGateway(rr.data.gateway);
-  renderConn();
+function renderGovernance(gov, opts) {
+  $("gov-workspace").value = gov.workspace || "";
+  const prof = $("gov-profile"); prof.textContent = "";
+  for (const p of opts.toolProfiles) { const o = document.createElement("option"); o.value = p; o.textContent = p; if (p === gov.toolProfile) o.selected = true; prof.appendChild(o); }
+  const ex = $("gov-exec"); ex.textContent = "";
+  const EXLABEL = { off: "Never ask (auto-run)", "on-miss": "Ask only for unlisted commands", always: "Always ask before shell" };
+  for (const e of opts.execAsk) { const o = document.createElement("option"); o.value = e; o.textContent = EXLABEL[e] || e; if (e === gov.execAsk) o.selected = true; ex.appendChild(o); }
+  const sb = $("gov-sandbox-body");
+  if (opts.dockerAvailable) sb.textContent = `Docker detected. Sandbox mode: ${gov.sandboxMode}, workspace access: ${gov.workspaceAccess}. (Container isolation configurable next.)`;
+  else sb.textContent = "Not available: OpenClaw's OS sandbox needs Docker, which was not detected. Governance falls back to the working folder + tool policy above.";
 }
 async function openSettings() {
   const r = await rpc("settings.get", {});
   if (!r.ok) return;
   const d = r.data;
-  setChosen = d.harness; setConnected = !!d.agentAlive;
-  // harness choices (instant active state on click)
-  const hbox = $("set-harness"); hbox.textContent = "";
-  for (const h of d.harnesses) {
-    const b = document.createElement("button");
-    b.className = "set-choice" + (h === setChosen ? " active" : "");
-    b.dataset.h = h;
-    b.textContent = h === "hermes" ? "Hermes" : h === "openclaw" ? "OpenClaw" : h;
-    b.onclick = () => selectHarness(h, hbox);
-    hbox.appendChild(b);
-  }
+  setConnected = !!d.agentAlive;
+  $("set-install-hint").textContent = d.installed ? "" : "OpenClaw was not detected - install it first (npm i -g openclaw @qvac/openclaw-plugin @qvac/cli @qvac/sdk).";
   renderGateway(d.gateway);
   renderConn();
   // Connect: the one "launch it" action. Starts the OpenClaw gateway for you, then opens the session.
   $("set-connect").onclick = async () => {
     const btn = $("set-connect"); btn.disabled = true;
     $("set-conn-status").textContent = "connecting..."; setDot("set-conn-dot", "starting");
-    $("set-conn-hint").textContent = setChosen === "openclaw" ? "starting gateway + opening ACP session..." : "opening ACP session...";
+    $("set-conn-hint").textContent = "starting gateway + opening ACP session...";
     const rr = await rpc("agent.connect", {});
     btn.disabled = false;
     if (rr.data?.gateway) renderGateway(rr.data.gateway);
@@ -300,6 +289,18 @@ async function openSettings() {
     else $("set-conn-hint").textContent = rr.data?.hint || ("could not connect: " + (rr.data?.error || rr.error || "unknown"));
   };
   $("set-gw-stop").onclick = async () => { const rr = await rpc("gateway.stop", {}); renderGateway(rr.data); };
+  // governance (writes OpenClaw's real config)
+  renderGovernance(d.governance, d);
+  const govSet = async (patch, note) => {
+    $("gov-state").textContent = "applying...";
+    const rr = await rpc("governance.set", patch);
+    if (!rr.ok) { $("gov-state").textContent = "failed: " + rr.error; return; }
+    renderGovernance(rr.data.governance, d);
+    $("gov-state").textContent = note || "saved to OpenClaw's config.";
+  };
+  $("gov-workspace-save").onclick = () => { const w = $("gov-workspace").value.trim(); if (w) govSet({ workspace: w }, "working folder set - reconnect to use it."); };
+  $("gov-profile").onchange = (e) => govSet({ toolProfile: e.target.value });
+  $("gov-exec").onchange = (e) => govSet({ execAsk: e.target.value });
   // model (restart is automatic; feedback while it reloads)
   const sel = $("set-model"); sel.textContent = "";
   for (const m of d.models) { const o = document.createElement("option"); o.value = m.id; o.textContent = m.label; if (m.id === d.model) o.selected = true; sel.appendChild(o); }
@@ -332,5 +333,5 @@ onFrame("gatewayState", (m) => { if ($("pane-settings").classList.contains("acti
 onFrame("agentState", (m) => {
   if (!$("pane-settings").classList.contains("active")) return;
   if (m.state === "ready") { setConnected = true; renderConn(); }
-  else if (m.state === "down" && m.code !== "harness-switch") { setConnected = false; renderConn(); }
+  else if (m.state === "down") { setConnected = false; renderConn(); }
 });

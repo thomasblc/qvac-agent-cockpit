@@ -17,22 +17,18 @@ import { decideLanguage } from "./lang-id.js";
 import { createWavHeader, int16ArrayToBuffer } from "./audio-utils.js";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import * as hermesHistory from "./history.js";
-import { readBoard, KanbanWatcher, kanbanAvailable } from "./kanban.js";
 import { indexCorpus, buildGraph, scanLinks, acceptLink, readCorpusDoc, getBrainRoot, setBrainRoot } from "./brain.js";
 import { listFiles, readFileById, writeFileById, markReviewed, revertToReviewed, counters, bump } from "./files.js";
-import { jobsWithSummaries, tickerAlive, cronAction } from "./cron.js";
-import { listSkills as hermesListSkills } from "./skills.js";
 import * as openclawStores from "./stores-openclaw.js";
 import { recordMission, snapshot as gamifySnapshot } from "./gamify.js";
 import { sample as egressSample } from "./egress.js";
 import { detectHarnesses, explainPlan } from "./onboard.js";
+import * as openclaw from "./openclaw.js";
 
-// Which harness the cockpit drives. Runtime-switchable from the Settings panel (harness.set):
-// `harness` + `caps` + `STORES` are recomputed together by applyHarness(); switching drops the
-// current ACP client so the next turn reconnects against the new harness's bridge.
+// OpenClaw-only build (Hermes removed for now: fully integrating a harness is a lot of work, so we
+// focus on making the OpenClaw experience complete). The harness abstraction is kept so a second
+// harness can return later, but only openclaw is exposed.
 const HARNESS_CMD = {
-  hermes: { bin: process.env.HOME + "/.local/bin/hermes", acpArgs: ["acp"] },
   openclaw: { bin: "openclaw", acpArgs: ["acp"] },
 };
 // Per-harness store capabilities. Hermes has all four store panes; OpenClaw exposes sessions +
@@ -40,29 +36,22 @@ const HARNESS_CMD = {
 // honest "not available for this harness" instead of erroring. history/skills are always await-safe
 // (the OpenClaw adapter returns promises; the Hermes modules return values -> Promise.resolve wraps).
 const STORE_CAPS = {
-  hermes: { history: true, skills: true, kanban: true, cron: true },
   openclaw: { history: true, skills: true, kanban: false, cron: false },
 };
 const OPENCLAW_STORES = { listSessions: openclawStores.listSessions, searchMessages: openclawStores.searchMessages, sessionTree: openclawStores.sessionTree, viewSession: openclawStores.viewSession, listSkills: openclawStores.listSkills };
-const HERMES_STORES_IMPL = { listSessions: hermesHistory.listSessions, searchMessages: hermesHistory.searchMessages, sessionTree: hermesHistory.sessionTree, viewSession: hermesHistory.viewSession, listSkills: hermesListSkills };
 
-let harness = process.env.COCKPIT_HARNESS || "hermes";
-let caps = STORE_CAPS[harness] || STORE_CAPS.hermes;
-let STORES = harness === "openclaw" ? OPENCLAW_STORES : HERMES_STORES_IMPL;
-let HERMES_STORES = harness === "hermes";
-function applyHarness(h) {
-  if (!HARNESS_CMD[h]) throw new Error("unknown harness " + h);
-  harness = h;
-  caps = STORE_CAPS[h] || STORE_CAPS.hermes;
-  STORES = h === "openclaw" ? OPENCLAW_STORES : HERMES_STORES_IMPL;
-  HERMES_STORES = h === "hermes";
-}
+let harness = "openclaw"; // OpenClaw-only build
+let caps = STORE_CAPS[harness];
+let STORES = OPENCLAW_STORES;
+let HERMES_STORES = false;
 const unavailable = (pane) => ({ unavailable: true, harness, reason: `${pane} is not available for ${harness}: this harness does not have that store.` });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8150);
-// The harness workspace the agent works in (P6 setup screen will set this; default = a scratch).
-const WORKSPACE = process.env.COCKPIT_WORKSPACE || path.join(__dirname, "..", "workspace");
+// The workspace the agent works in = OpenClaw's own configured workspace (agents.defaults.workspace),
+// so the Files/Second Brain panes show what the agent actually touches. Override with COCKPIT_WORKSPACE.
+// Mutable: governance.set can repoint it (then the ACP client is dropped so the next turn uses the new cwd).
+let WORKSPACE = process.env.COCKPIT_WORKSPACE || openclaw.workspace();
 mkdirSync(WORKSPACE, { recursive: true });
 
 const app = express();
@@ -267,8 +256,7 @@ wss.on("connection", (ws) => {
         if (!caps.history) return reply(true, unavailable("session history"));
         reply(true, await STORES.viewSession(msg.sessionId, msg.profile || "main"));
       } else if (msg.type === "kanban.board") {
-        if (!caps.kanban) return reply(true, unavailable("a kanban board"));
-        reply(true, readBoard());
+        reply(true, unavailable("a kanban board")); // OpenClaw has no kanban store
       } else if (msg.type === "brain.index") {
         reply(true, await indexCorpus(WORKSPACE, (f) => send(ws, f)));
       } else if (msg.type === "brain.graph") {
@@ -291,12 +279,8 @@ wss.on("connection", (ws) => {
         reply(true, markReviewed(msg.fileId, WORKSPACE));
       } else if (msg.type === "files.revert") {
         reply(true, revertToReviewed(msg.fileId, WORKSPACE, msg.knownHash));
-      } else if (msg.type === "cron.list") {
-        if (!caps.cron) return reply(true, unavailable("a cron scheduler"));
-        reply(true, { jobs: await jobsWithSummaries({ serveBase: serve.base(), model: serve.model }), ticker: tickerAlive() });
-      } else if (msg.type === "cron.action") {
-        if (!caps.cron) return reply(true, unavailable("a cron scheduler"));
-        reply(true, await cronAction(msg.verb, msg.jobId, msg.profile));
+      } else if (msg.type === "cron.list" || msg.type === "cron.action") {
+        reply(true, unavailable("a cron scheduler")); // OpenClaw has no cron store
       } else if (msg.type === "skills.list") {
         if (!caps.skills) return reply(true, unavailable("a skills catalog"));
         reply(true, { skills: await STORES.listSkills() });
@@ -307,32 +291,42 @@ wss.on("connection", (ws) => {
       } else if (msg.type === "onboard.scan") {
         const evidence = detectHarnesses();
         reply(true, await explainPlan({ serveBase: serve.base(), model: serve.model }, evidence));
-      } else if (msg.type === "setup.detect") {
-        // one-click: is a hermes home present? which model?
-        const { existsSync } = await import("node:fs");
-        reply(true, { hermes: existsSync(process.env.HOME + "/.hermes"), workspace: WORKSPACE, model: serve.model, serveState: serve.state });
       } else if (msg.type === "settings.get") {
         reply(true, {
-          harness, harnesses: Object.keys(HARNESS_CMD),
+          harness, installed: openclaw.installed(),
           model: serve.model, models: MODEL_CHOICES, serveState: serve.state,
-          gateway: gateway.status(), gatewayNeeded: harness === "openclaw",
+          gateway: gateway.status(),
           agentAlive: !!acp?.alive,
-          brainRoot: getBrainRoot(), brainDefault: "Hermes corpus (~/.hermes) + workspace",
+          brainRoot: getBrainRoot(), brainDefault: "the OpenClaw workspace",
+          governance: openclaw.governance(), dockerAvailable: await openclaw.dockerAvailable(),
+          toolProfiles: ["minimal", "coding", "messaging", "full"], execAsk: ["off", "on-miss", "always"],
         });
+      } else if (msg.type === "governance.set") {
+        // Write OpenClaw's real config (workspace / tool profile / exec-ask / sandbox) - no CLI needed.
+        // Allow-list the enums app-side (clean errors) even though OpenClaw validates its own config.
+        try {
+          const PROFILES = ["minimal", "coding", "messaging", "full"], ASK = ["off", "on-miss", "always"];
+          const SBMODE = ["off", "non-main", "all"], SBACC = ["none", "ro", "rw"];
+          if (msg.toolProfile && !PROFILES.includes(msg.toolProfile)) return reply(false, null, "invalid tool profile");
+          if (msg.execAsk && !ASK.includes(msg.execAsk)) return reply(false, null, "invalid exec-ask value");
+          if (msg.sandbox && (!SBMODE.includes(msg.sandbox.mode) || !SBACC.includes(msg.sandbox.workspaceAccess))) return reply(false, null, "invalid sandbox setting");
+          if (msg.workspace) {
+            const ws = String(msg.workspace).startsWith("~") ? path.join(process.env.HOME || "", String(msg.workspace).slice(1)) : String(msg.workspace);
+            const r = await openclaw.configSet("agents.defaults.workspace", ws); if (!r.ok) return reply(false, null, r.error);
+            WORKSPACE = ws; mkdirSync(WORKSPACE, { recursive: true }); // repoint the cockpit's own corpus/cwd too
+            try { acp?.stop(); } catch { /* */ } acp = null; connecting = null; // next turn reconnects in the new cwd
+            broadcast({ type: "agentState", state: "down", code: "workspace-change" });
+          }
+          if (msg.toolProfile) { const r = await openclaw.configSet("tools.profile", msg.toolProfile); if (!r.ok) return reply(false, null, r.error); }
+          if (msg.execAsk) { const r = await openclaw.configSet("tools.exec.ask", msg.execAsk); if (!r.ok) return reply(false, null, r.error); }
+          if (msg.sandbox) { const r = await openclaw.configPatch({ agents: { defaults: { sandbox: { mode: msg.sandbox.mode, workspaceAccess: msg.sandbox.workspaceAccess } } } }); if (!r.ok) return reply(false, null, r.error); }
+          const gov = openclaw.governance();
+          broadcast({ type: "governanceChanged", governance: gov });
+          reply(true, { governance: gov });
+        } catch (e) { reply(false, null, String(e?.message || e).slice(0, 200)); }
       } else if (msg.type === "brain.setRoot") {
         try { const root = setBrainRoot(msg.path || null); broadcast({ type: "brainRootChanged", brainRoot: root }); reply(true, { brainRoot: root }); }
         catch (e) { reply(false, null, String(e?.message || e).slice(0, 200)); }
-      } else if (msg.type === "harness.set") {
-        if (!HARNESS_CMD[msg.harness]) return reply(false, null, "unknown harness");
-        if (msg.harness !== harness) {
-          applyHarness(msg.harness);
-          try { acp?.cancel(); } catch { /* */ } // fire the cancel hook first: clears pending permission cards (review P2)
-          try { acp?.stop(); } catch { /* */ } // drop the old bridge; next turn reconnects to the new one
-          acp = null; connecting = null;
-          broadcast({ type: "harnessSwitched", harness, storeCaps: caps, hermesStores: HERMES_STORES });
-          broadcast({ type: "agentState", state: "down", code: "harness-switch" });
-        }
-        reply(true, { harness, storeCaps: caps, gatewayNeeded: harness === "openclaw", gateway: gateway.status() });
       } else if (msg.type === "agent.connect") {
         // The "launch it" action: for OpenClaw, bring the Gateway up first (its ACP bridge needs it),
         // then establish the ACP session so the user gets real feedback instead of a blind first msg.
@@ -374,6 +368,5 @@ server.listen(PORT, "127.0.0.1", async () => {
   console.log(`[cockpit] http://localhost:${PORT} | workspace ${WORKSPACE}`);
   await serve.ensure();
   serve.watch();
-  if (kanbanAvailable()) new KanbanWatcher((events) => broadcast({ type: "kanban", events }));
   console.log(`[cockpit] serve ${serve.state} on :${serve.port} (${serve.model})`);
 });
