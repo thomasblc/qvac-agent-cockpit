@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1 (2026-07-14) - pairing fix-pack + WS origin gate
+- Fix (P1): `run()` truncated command stdout to 600 chars, which corrupted the JSON that device pairing parses (`devices list --json`), so pairing silently approved nothing. Full stdout is now kept.
+- Fix (P1): device pairing now approves ONLY the ACP bridge's own pending request (displayName "ACP"), not every pending request - closes a confused-deputy path where a foreign device pending at the same instant could be auto-approved.
+- Security (P1): the WebSocket server now enforces an Origin gate. The cockpit does privileged things (spawn processes, grant OpenClaw admin scope, write config) and a WS handshake bypasses same-origin, so a malicious web page could otherwise drive it drive-by. Only a same-host browser Origin (the cockpit page) or no Origin (CLI/non-browser) is accepted.
+
 ## 2.1.0 (2026-07-14) - one-click device pairing
 - **No more CLI to pair the device.** OpenClaw's ACP bridge needs this device paired with admin scope on the local Gateway (previously `openclaw onboard` in a terminal). Now: Connect detects the pending-scope state and offers a **Pair this device** button that approves it with the Gateway token and reconnects - all in the cockpit. Removes the last one-time CLI step for connecting to OpenClaw.
 - Mechanism: the pending admin request is created when the bridge attempts to connect, so pairing = attempt -> approve the exact requestId (not --latest, which never escalates past operator.pairing) -> attempt again. Idempotent when already paired.

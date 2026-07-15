@@ -69,16 +69,22 @@ export function gatewayToken() { return getPath("gateway.auth.token") || null; }
 function run(args, timeoutMs = 20000) {
   return new Promise((resolve) => {
     execFile(OC, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      resolve({ ok: !err, out: String(stdout || "").slice(0, 600), err: String(stderr || (err && err.message) || "").slice(0, 600) });
+      // Keep FULL stdout: callers (pendingRequests) JSON.parse it - a 600-char slice would corrupt the
+      // document (review P1). Only the error string is truncated for logging.
+      resolve({ ok: !err, out: String(stdout || ""), err: String(stderr || (err && err.message) || "").slice(0, 600) });
     });
   });
 }
 
-// List pending device requests (requestIds) from the local Gateway.
+// List pending requests from the local Gateway that belong to the ACP bridge (displayName "ACP").
+// SCOPING (review P1): approve ONLY the ACP bridge's own requests, never a foreign device that
+// happens to be pending at the same instant (would be a confused-deputy admin escalation).
 async function pendingRequests(token) {
   const r = await run(["devices", "list", "--token", token, "--json"], 12000);
-  try { const d = JSON.parse(r.out.slice(r.out.indexOf("{"), r.out.lastIndexOf("}") + 1)); return (d.pending || []).map((p) => p.requestId).filter(Boolean); }
-  catch { return []; }
+  try {
+    const d = JSON.parse(r.out.slice(r.out.indexOf("{"), r.out.lastIndexOf("}") + 1));
+    return (d.pending || []).filter((p) => p && p.displayName === "ACP").map((p) => p.requestId).filter(Boolean);
+  } catch { return []; }
 }
 
 // Approve THIS device's pending scope requests against the local Gateway with the Gateway token.

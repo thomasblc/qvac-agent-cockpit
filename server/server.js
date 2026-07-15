@@ -57,7 +57,15 @@ mkdirSync(WORKSPACE, { recursive: true });
 const app = express();
 app.use(express.static(path.join(__dirname, "..", "public")));
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+// Origin gate (review P1): the cockpit does privileged things (spawn processes, grant OpenClaw admin
+// scope, write config), and a WS handshake is NOT bound by same-origin - so any web page the user
+// visits could otherwise open ws://localhost:<port> and drive it drive-by. Accept only a same-host
+// browser Origin (the cockpit page itself) or no Origin at all (non-browser clients: CLI, tests).
+function originAllowed(origin) {
+  if (!origin) return true;
+  try { const h = new URL(origin).hostname; return h === "localhost" || h === "127.0.0.1" || h === "::1"; } catch { return false; }
+}
+const wss = new WebSocketServer({ server, verifyClient: (info) => originAllowed(info.origin || info.req?.headers?.origin) });
 
 const serve = new ServeManager({
   port: 11434,
