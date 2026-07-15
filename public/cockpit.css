@@ -1,11 +1,15 @@
-/* Glass Cockpit. Design system: Linear-discipline dark UI (neutral near-black surface ladder,
-   hairline borders not shadows, tight display tracking, one accent used sparingly). Accent stays
-   teal (local-AI identity). Surfaces never skip a rung: canvas -> surface -> elevated -> overlay. */
+/* Glass Cockpit. TWO signature skins, switchable + persisted (top-bar picker):
+   - MARIANA (default): bioluminescent deep-water. Abyssal blue canvas, a living teal orb whose light
+     rises from below, frosted-glass chrome, a violet secondary. Warm, premium, alive.
+   - NOSTROMO: cassette-futurism amber terminal. Monochrome amber-on-black, CRT scanlines, phosphor glow.
+   A theme only remaps the palette tokens + a couple of signature layers; layout/components are
+   theme-invariant. :root holds the Mariana values so there is no flash before JS sets data-theme. */
 :root {
-  --bg: #08090a; --surface: #0f1011; --elevated: #151617; --overlay: #1c1d20;
-  --line: #23252a; --line-strong: #34343a;
-  --fg: #f7f8f8; --mut: #8a8f98; --dim: #62666d;
-  --live: #16E3C1; --live-soft: rgba(22,227,193,0.10); --live-line: rgba(22,227,193,0.28);
+  --bg: #03060c; --surface: #071119; --elevated: #0c1a24; --overlay: #12242f;
+  --line: #16303a; --line-strong: #21505f;
+  --fg: #eafcf7; --mut: #8fb3bd; --dim: #547079;
+  --live: #16E3C1; --live-soft: rgba(22,227,193,0.12); --live-line: rgba(22,227,193,0.30);
+  --accent2: #7b6cff;
   --warn: #E0A33C; --bad: #e0533d;
   --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
   --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -16,7 +20,10 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--sans); letter-spacing: -0.01em; overflow: hidden; -webkit-font-smoothing: antialiased; }
-#shell { display: flex; height: 100vh; }
+/* MARIANA: abyssal light rising from below the fold */
+[data-theme="mariana"] body { background: radial-gradient(125% 85% at 50% 138%, #0c3a4e 0%, #061a2b 46%, #03060c 80%); }
+[data-theme="nostromo"] body { background: #0a0703; }
+#shell { display: flex; height: 100vh; position: relative; }
 h1, h2, h3 { letter-spacing: -0.02em; }
 
 /* rail: collapsed to icons by default, expands to labels on hover (or pinned) */
@@ -239,17 +246,36 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .proposal-card button { font: 600 10px var(--mono); padding: 4px 11px; border-radius: 7px; border: none; background: var(--live); color: #04140f; cursor: pointer; margin-right: 6px; }
 .proposal-card button.skip { background: var(--overlay); color: var(--fg); border: 1px solid var(--line); }
 
-/* ---- theme packs: a theme only remaps the palette tokens; layout/components are theme-invariant ---- */
-[data-theme="paper"] {
-  --bg: #f2f1ec; --surface: #fbfaf6; --elevated: #ffffff; --overlay: #eceae2;
-  --line: #d9d6cc; --fg: #23231f; --mut: #5c5a52; --dim: #8a887e;
-  --live: #0a9d86; --live-soft: rgba(10,157,134,0.12); --warn: #b9791b; --bad: #b23c2b;
+/* ================= THEME: MARIANA (default) ================= */
+/* Frosted-glass chrome so the abyssal gradient glows through the edges. Dense panes keep solid
+   surfaces for readability; only the chrome (rail, status bar, input row) is glass. */
+[data-theme="mariana"] #statusbar,
+[data-theme="mariana"] #input-row { background: rgba(7,17,25,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+[data-theme="mariana"] #rail { background: rgba(6,16,24,0.62); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+[data-theme="mariana"] .rail-btn.active { box-shadow: inset 0 0 0 1px var(--live-line), 0 0 16px -6px var(--live); }
+[data-theme="mariana"] #orb-wrap { background: radial-gradient(60% 60% at 50% 55%, rgba(22,227,193,0.12), transparent 70%); }
+[data-theme="mariana"] .msg-user { background: rgba(255,255,255,0.06); backdrop-filter: blur(4px); }
+[data-theme="mariana"] #send { box-shadow: 0 0 18px -4px var(--live); }
+
+/* ================= THEME: NOSTROMO (amber CRT) ================= */
+[data-theme="nostromo"] {
+  --bg: #0a0703; --surface: #0f0b05; --elevated: #150e06; --overlay: #1e1408;
+  --line: #3a2c12; --line-strong: #5a4416;
+  --fg: #f0bf6a; --mut: #b3822f; --dim: #7a5a24;
+  --live: #ffb000; --live-soft: rgba(255,176,0,0.12); --live-line: rgba(255,176,0,0.38);
+  --accent2: #ffb000;
+  --warn: #ffcf5a; --bad: #ff5a3c;
 }
-[data-theme="terminal"] {
-  --bg: #050705; --surface: #0a0d0a; --elevated: #0f130f; --overlay: #141a14;
-  --line: #1c261c; --fg: #7dd88f; --mut: #4f8a5c; --dim: #356140;
-  --live: #38f57a; --live-soft: rgba(56,245,122,0.1); --warn: #d8c24b; --bad: #e3556b;
+/* CRT scanline veil over the whole shell (pointer-events:none so it never blocks a click) */
+[data-theme="nostromo"] #shell::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 900;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px);
 }
+[data-theme="nostromo"] #status-verb { text-shadow: 0 0 8px rgba(255,176,0,0.45); }
+[data-theme="nostromo"] .rail-logo { text-shadow: 0 0 10px rgba(255,176,0,0.4); }
+[data-theme="nostromo"] .msg-agent.streaming::after { content: "█"; }
+[data-theme="nostromo"] #input:focus { box-shadow: 0 0 0 2px var(--live-soft), 0 0 14px -4px var(--live); }
+
 /* motion multiplier: a calm theme can damp transitions */
 [data-motion="calm"] * { transition-duration: 0s !important; animation-duration: 0.001s !important; }
 

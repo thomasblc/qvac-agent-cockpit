@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.0 (2026-07-15) - two signature skins (Mariana + Nostromo)
+Pure visual redesign, no functional change. The flat near-black look is replaced by two distinct, switchable, persisted themes (top-bar picker):
+- **Mariana** (default): bioluminescent deep-water. An abyssal blue-teal canvas whose light rises from below, a living teal orb (round, restless) with a violet secondary, frosted-glass chrome (rail, status bar, input row), a soft glow on the send button.
+- **Nostromo**: cassette-futurism amber terminal. Monochrome amber-on-black, CRT scanline veil over the whole screen, a faceted analytical orb, phosphor glow on the status word and logo, a block cursor while streaming.
+The orb (canvas) recolors and changes its shape profile with the theme, so it belongs to the skin rather than just the CSS. The picker replaces the old vestigial HUD/Paper/Terminal themes.
+
 ## 3.2.0 (2026-07-15) - reliability hardening + honest skills, in-app channels, agent-model control
 Fixes from a full multi-agent code review (the app had too many silent failures).
 - **Stability**: the server no longer crashes on a dropped socket. It had no `ws`/`wss`/process error handlers, so a closed tab or reset connection could take the whole server down (the likely cause of "it keeps dying"). Added per-connection and process-level guards.

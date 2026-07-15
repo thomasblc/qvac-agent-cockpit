@@ -6,8 +6,7 @@ import { renderMarkdown } from "./md.js";
 
 const $ = (id) => document.getElementById(id);
 const orb = new Orb($("orb-canvas"));
-orb.start();
-orb.setColor("#16E3C1", null);
+orb.start(); // color + profile are set by the active theme (see applyTheme below)
 
 let ws, nextId = 1;
 const pending = new Map();
@@ -364,11 +363,21 @@ $("mic").onclick = () => { if (recording) stopRec(); else startRec(); };
 window.cockpit = { rpc, onFrame, loadHistory };
 
 
-// ---- P6: theme, gamification chip, egress meter, model picker ----
+// ---- theme: two signature skins. Mariana (bioluminescent, teal + violet, living orb) is the
+// default; Nostromo (amber CRT terminal, monochrome, analytical orb). The orb (canvas) recolors +
+// changes shape profile with the theme so it belongs to the skin, not just the CSS.
 const themePick = $("theme-pick");
-themePick.value = localStorage.getItem("cockpit-theme") || "";
-document.documentElement.dataset.theme = themePick.value;
-themePick.onchange = () => { document.documentElement.dataset.theme = themePick.value; localStorage.setItem("cockpit-theme", themePick.value); };
+const THEME_ORB = { mariana: ["#16E3C1", "#7B6CFF", "NOVA"], nostromo: ["#FFB000", null, "ECHO"] };
+function applyTheme(t) {
+  if (!THEME_ORB[t]) t = "mariana";
+  document.documentElement.dataset.theme = t;
+  const [c, c2, prof] = THEME_ORB[t];
+  orb.setColor(c, c2); orb.setProfile(prof);
+  themePick.value = t;
+  localStorage.setItem("cockpit-theme", t);
+}
+applyTheme(localStorage.getItem("cockpit-theme") || "mariana");
+themePick.onchange = () => applyTheme(themePick.value);
 
 onFrame("gamify", (m) => renderGamify(m));
 function renderGamify(m) {
