@@ -53,13 +53,16 @@ export function corpusRoots(workspace) {
   return roots.filter((r) => existsSync(r.root));
 }
 
-const MAX_FILES = 5000, MAX_SIZE = 2 * 1024 * 1024;
+const MAX_FILES = 5000, MAX_SIZE = 2 * 1024 * 1024, MAX_DIRS = 20000;
 export function walkCorpus(workspace) {
   const out = [];
+  let dirsScanned = 0; // bound the DFS itself, not just .md collected (review P1): a user-chosen
+  // vault pointed at ~ or / is .md-sparse, so MAX_FILES alone never trips and the sync walk would
+  // descend the whole filesystem, freezing the WS server. Cap directories visited too.
   for (const r of corpusRoots(workspace)) {
     const stack = [r.root];
-    while (stack.length && out.length < MAX_FILES) {
-      const dir = stack.pop();
+    while (stack.length && out.length < MAX_FILES && dirsScanned < MAX_DIRS) {
+      const dir = stack.pop(); dirsScanned++;
       let entries; try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
       for (const e of entries) {
         if (e.name.startsWith(".") || ["node_modules", "venv"].includes(e.name)) continue;
