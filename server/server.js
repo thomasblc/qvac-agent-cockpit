@@ -93,6 +93,7 @@ function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); 
 
 // ---- the one agent connection (P1: single session; P3 adds history/multi) ----
 let acp = null, connecting = null;
+let setupBusy = false; // single-flight guard for setup.install/provider (no concurrent npm -g)
 let turn = null; // { startedAt, text, tools: Map(toolCallId -> {title,kind,status}), lastStatus }
 
 const KIND_VERB = { read: "Reading", edit: "Editing", execute: "Running", search: "Searching", other: "Working on" };
@@ -338,13 +339,17 @@ wss.on("connection", (ws) => {
       } else if (msg.type === "setup.status") {
         reply(true, await openclaw.setupStatus());
       } else if (msg.type === "setup.install") {
-        const r = await openclaw.installOpenClaw((line) => send(ws, { type: "setup.log", line }));
-        reply(true, { code: r.code, status: await openclaw.setupStatus() });
+        if (setupBusy) return reply(false, null, "a setup step is already running");
+        setupBusy = true;
+        try { const r = await openclaw.installOpenClaw((line) => send(ws, { type: "setup.log", line })); reply(true, { code: r.code, status: await openclaw.setupStatus() }); }
+        finally { setupBusy = false; }
       } else if (msg.type === "setup.provider") {
+        if (setupBusy) return reply(false, null, "a setup step is already running");
         // model = an OpenClaw catalog id (qwen3.5-0.8b/2b/4b/9b, qwen3.6-27b/35b-a3b, gpt-oss-20b, gemma4-31b)
         const OC_MODELS = ["qwen3.5-0.8b", "qwen3.5-2b", "qwen3.5-4b", "qwen3.5-9b", "qwen3.6-27b", "qwen3.6-35b-a3b", "gpt-oss-20b", "gemma4-31b"];
-        const st = await openclaw.setupProvider((line) => send(ws, { type: "setup.log", line }), { model: OC_MODELS.includes(msg.model) ? msg.model : "qwen3.5-9b" });
-        reply(true, { status: st });
+        setupBusy = true;
+        try { const st = await openclaw.setupProvider((line) => send(ws, { type: "setup.log", line }), { model: OC_MODELS.includes(msg.model) ? msg.model : "qwen3.5-9b" }); reply(true, { status: st }); }
+        finally { setupBusy = false; }
       } else if (msg.type === "agent.connect") {
         // The "launch it" action: for OpenClaw, bring the Gateway up first (its ACP bridge needs it),
         // then establish the ACP session so the user gets real feedback instead of a blind first msg.
