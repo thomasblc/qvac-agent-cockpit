@@ -36,8 +36,9 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 #status-verb { color: var(--live); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; }
 #status-target { color: var(--fg); }
 #status-elapsed { color: var(--dim); }
-.status-right { margin-left: auto; display: flex; gap: 12px; color: var(--dim); }
-#agent-name { color: var(--mut); }
+.status-right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--dim); }
+.agent-name { color: var(--fg); font-weight: 600; }
+.status-sep { width: 1px; height: 16px; background: var(--line); }
 
 /* cockpit pane */
 .pane { display: none; flex: 1; min-height: 0; }
@@ -151,12 +152,17 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .job-meta { font: 11px var(--mono); color: var(--dim); }
 .job-acts { display: flex; gap: 6px; margin-top: 8px; }
 .job-acts button { font: 600 10px var(--mono); padding: 4px 11px; border-radius: 7px; border: 1px solid var(--line); background: var(--elevated); color: var(--fg); cursor: pointer; }
-#skills-grid { flex: 1; overflow-y: auto; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; align-content: start; }
+#skills-grid { flex: 1; overflow-y: auto; padding: 18px 22px; align-content: start; }
+.skills-note { color: var(--mut); font-size: 12.5px; line-height: 1.5; margin-bottom: 16px; max-width: 900px; }
+.skills-group { font: 600 10px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin: 18px 0 8px; }
+.skills-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .skill-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; }
-.skill-name { font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; }
-.skill-cat { font: 10px var(--mono); color: var(--live); letter-spacing: 1px; text-transform: uppercase; }
+.skill-card.ready { border-color: rgba(22,227,193,0.25); }
+.skill-name { font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.skill-status { font: 9px var(--mono); border-radius: 999px; padding: 1px 7px; flex: 0 0 auto; }
+.skill-status.ok { color: var(--live); background: var(--live-soft); }
+.skill-status.warn { color: var(--warn); border: 1px solid rgba(240,169,60,0.3); }
 .skill-desc { color: var(--mut); font-size: 12px; margin-top: 5px; line-height: 1.45; }
-.skill-use { font: 10px var(--mono); color: var(--dim); }
 .proposal-card { background: var(--elevated); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 12px; margin-bottom: 7px; }
 .proposal-card .pc-reason { color: var(--mut); font-style: italic; margin: 5px 0; }
 .proposal-card button { font: 600 10px var(--mono); padding: 4px 11px; border-radius: 7px; border: none; background: var(--live); color: #04140f; cursor: pointer; margin-right: 6px; }
@@ -180,11 +186,9 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .hud-chip { font: 10.5px var(--mono); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: default; }
 .hud-chip.live { color: var(--live); border-color: rgba(22,227,193,0.35); }
 /* per-harness capability badges (feature parity, honest tri-state) */
-.cap-badges { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
-.cap-badge { font: 9px var(--mono); text-transform: uppercase; letter-spacing: 0.03em; border-radius: 4px; padding: 1px 5px; border: 1px solid var(--line); cursor: default; }
-.cap-badge.cap-on { color: var(--live); border-color: rgba(22,227,193,0.4); background: var(--live-soft); }
-.cap-badge.cap-off { color: var(--dim); border-color: var(--line); opacity: 0.55; text-decoration: line-through; }
-.cap-badge.cap-unknown { color: var(--mut); border-style: dashed; }
+.cap-badges { display: inline-flex; gap: 5px; align-items: center; }
+.cap-pill { font: 9.5px var(--mono); letter-spacing: 0.02em; border-radius: 999px; padding: 2px 8px; color: var(--live); background: var(--live-soft); cursor: default; }
+.cap-pill.off { color: var(--dim); background: transparent; border: 1px solid var(--line); }
 #theme-pick, #model-pick2 { background: var(--elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); font: 10.5px var(--mono); padding: 1px 6px; cursor: pointer; }
 
 /* history viewer modal */
@@ -196,7 +200,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .hist-msg.tool { color: var(--mut); font-family: var(--mono); font-size: 11px; }
 
 /* ---------- SETTINGS pane ---------- */
-#settings-wrap { padding: 20px; display: flex; flex-direction: column; gap: 16px; max-width: 640px; overflow-y: auto; }
+#settings-wrap { padding: 22px; display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; align-content: start; overflow-y: auto; width: 100%; }
 .set-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
 .set-card h3 { margin: 0 0 6px; font: 600 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
 .set-hint { color: var(--mut); font-size: 12.5px; margin: 0 0 12px; line-height: 1.5; }

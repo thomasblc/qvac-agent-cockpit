@@ -34,32 +34,28 @@ function setStatus(verb, target) {
   $("status-verb").textContent = verb;
   $("status-target").textContent = target || "";
 }
-// Capability badges: what the connected harness actually exposes over ACP (loadSession/plan/
-// permission) + which store panes it backs. A null capability = the harness advertised nothing;
-// observed events fill it in, so we show "?" rather than claiming absence. Honest feature parity.
+// Capability chips in the top bar: show ONLY what the connected harness actually supports (the
+// enabled ones), as subtle status pills - not a row of struck-through "off" noise. The full
+// tri-state stays discoverable via each pill's tooltip; disabled caps are summarized in one muted
+// "no: ..." pill so the bar stays clean but honest.
 function renderCaps(harness, caps, storeCaps) {
   const el = $("agent-caps");
   if (!el || !harness) return;
-  const badges = [];
-  const tri = (v) => (v === true ? "on" : v === false ? "off" : "unknown");
+  const all = [];
   if (caps) {
-    badges.push(["replay", caps.loadSession, "session replay (session/load)"]);
-    badges.push(["plan", caps.plan, "streams a plan"]);
-    badges.push(["gated", caps.permission, "asks permission before tools"]);
+    all.push(["replay", caps.loadSession, "session replay (session/load)"]);
+    all.push(["plan", caps.plan, "streams a plan"]);
+    all.push(["gated", caps.permission, "asks permission before tools"]);
   }
-  if (storeCaps) {
-    for (const [k, label] of [["history", "history"], ["skills", "skills"], ["kanban", "kanban"], ["cron", "cron"]]) {
-      badges.push([label, storeCaps[k], `${label} store`]);
-    }
-  }
+  if (storeCaps) for (const k of ["history", "skills", "kanban", "cron"]) all.push([k, storeCaps[k], `${k} store`]);
   el.textContent = "";
-  for (const [label, val, title] of badges) {
-    const b = document.createElement("span");
-    b.className = "cap-badge cap-" + tri(val);
-    b.textContent = label;
-    b.title = title + ": " + tri(val);
+  const on = all.filter(([, v]) => v === true);
+  const off = all.filter(([, v]) => v === false).map(([l]) => l);
+  for (const [label, , title] of on) {
+    const b = document.createElement("span"); b.className = "cap-pill"; b.textContent = label; b.title = title + ": yes";
     el.appendChild(b);
   }
+  if (off.length) { const b = document.createElement("span"); b.className = "cap-pill off"; b.textContent = "no " + off.join(" / "); b.title = "not available on this harness"; el.appendChild(b); }
 }
 function startElapsed() {
   stopElapsed();
@@ -119,7 +115,6 @@ function onMessage(ev) {
   frameListeners.get(m.type)?.(m);
   switch (m.type) {
     case "hello":
-      $("model-name").textContent = m.model || "";
       if (m.agent?.name) $("agent-name").textContent = m.agent.name;
       renderCaps(m.harness, m.capabilities, m.storeCaps);
       setServeDot(m.serveState);
@@ -423,13 +418,7 @@ async function pollEgress() {
 }
 setTimeout(pollEgress, 3000);
 
-// model picker: populated from the serve model (P6 setup relocates a real catalog here)
-rpc("setup.detect", {}).then((r) => {
-  if (!r.ok) return;
-  const sel = $("model-pick2");
-  sel.innerHTML = "";
-  const o = document.createElement("option"); o.value = r.data.model; o.textContent = r.data.model; sel.appendChild(o);
-});
+// (model selection lives in the Settings pane now)
 
 // View a past session's transcript (read from state.db, NOT an ACP session/load hijack).
 async function viewPastSession(sessionId, profile) {

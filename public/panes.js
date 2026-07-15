@@ -230,17 +230,30 @@ async function openSkills() {
   grid.textContent = "";
   const r = await rpc("skills.list", {});
   if (r.data?.unavailable) { renderUnavailable(grid, r.data); return; }
-  for (const s of (r.data?.skills || [])) {
-    const card = document.createElement("div");
-    card.className = "skill-card";
-    const top = document.createElement("div"); top.className = "skill-name";
-    const nm = document.createElement("span"); nm.textContent = s.name;
-    const use = document.createElement("span"); use.className = "skill-use"; use.textContent = s.useCount ? `${s.useCount} uses` : "";
-    top.append(nm, use);
-    const cat = document.createElement("div"); cat.className = "skill-cat"; cat.textContent = s.category;
-    const desc = document.createElement("div"); desc.className = "skill-desc"; desc.textContent = s.description;
-    card.append(top, cat, desc);
-    grid.appendChild(card);
+  const skills = r.data?.skills || [];
+  // header: what this pane is
+  const note = document.createElement("div"); note.className = "skills-note";
+  const ready = skills.filter((s) => s.ready).length;
+  note.textContent = `${skills.length} skills OpenClaw can use (${ready} ready). This is a read-only view of OpenClaw's skill catalog; "needs setup" means a skill is missing a binary or credential. Grouped by source.`;
+  grid.appendChild(note);
+  // group by category (source)
+  const groups = new Map();
+  for (const s of skills) { const g = s.category || "other"; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
+  for (const [cat, list] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    const h = document.createElement("h3"); h.className = "skills-group"; h.textContent = `${cat}  (${list.length})`;
+    grid.appendChild(h);
+    const wrap = document.createElement("div"); wrap.className = "skills-cards";
+    for (const s of list.sort((a, b) => (b.ready - a.ready) || a.name.localeCompare(b.name))) {
+      const card = document.createElement("div"); card.className = "skill-card" + (s.ready ? " ready" : "");
+      const top = document.createElement("div"); top.className = "skill-name";
+      const nm = document.createElement("span"); nm.textContent = (s.emoji ? s.emoji + " " : "") + s.name;
+      const st = document.createElement("span"); st.className = "skill-status " + (s.ready ? "ok" : "warn"); st.textContent = s.ready ? "ready" : "needs setup";
+      top.append(nm, st);
+      const desc = document.createElement("div"); desc.className = "skill-desc"; desc.textContent = s.description;
+      card.append(top, desc);
+      wrap.appendChild(card);
+    }
+    grid.appendChild(wrap);
   }
 }
 

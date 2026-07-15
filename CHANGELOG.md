@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.0 (2026-07-15) - UI polish
+- Settings now uses the full width (responsive multi-column grid) instead of a narrow 40%-wide column.
+- Top bar cleaned up: removed the empty model dropdown, capability badges are now legible pills (only what's supported, with a single muted "no ..." pill for the rest) next to the agent name, tidier spacing.
+- Skills pane: grouped by source, each skill shows a ready / needs-setup status, with a one-line explanation that it's a read-only view of OpenClaw's skill catalog.
+
 ## 2.3.0 (2026-07-14) - use your own local models (no re-download)
 - New **Local models** setting: point at a folder of GGUF files you already have (LM Studio, Ollama, manual HF downloads), Scan it, and Add them - they show up in the model picker and load straight from disk, no re-download. Proven: `qvac serve` accepts an explicit `{ src: <local path>, type }` model entry, so the cockpit generates a merged serve config (bundled catalog models + your local ones) that the serve points at.
 - Also: QVAC's own downloaded models (in ~/.qvac) are already reused across runs - re-download only happens for a catalog model you have never fetched.
