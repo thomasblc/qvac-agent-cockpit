@@ -335,6 +335,16 @@ wss.on("connection", (ws) => {
       } else if (msg.type === "brain.setRoot") {
         try { const root = setBrainRoot(msg.path || null); broadcast({ type: "brainRootChanged", brainRoot: root }); reply(true, { brainRoot: root }); }
         catch (e) { reply(false, null, String(e?.message || e).slice(0, 200)); }
+      } else if (msg.type === "setup.status") {
+        reply(true, await openclaw.setupStatus());
+      } else if (msg.type === "setup.install") {
+        const r = await openclaw.installOpenClaw((line) => send(ws, { type: "setup.log", line }));
+        reply(true, { code: r.code, status: await openclaw.setupStatus() });
+      } else if (msg.type === "setup.provider") {
+        // model = an OpenClaw catalog id (qwen3.5-0.8b/2b/4b/9b, qwen3.6-27b/35b-a3b, gpt-oss-20b, gemma4-31b)
+        const OC_MODELS = ["qwen3.5-0.8b", "qwen3.5-2b", "qwen3.5-4b", "qwen3.5-9b", "qwen3.6-27b", "qwen3.6-35b-a3b", "gpt-oss-20b", "gemma4-31b"];
+        const st = await openclaw.setupProvider((line) => send(ws, { type: "setup.log", line }), { model: OC_MODELS.includes(msg.model) ? msg.model : "qwen3.5-9b" });
+        reply(true, { status: st });
       } else if (msg.type === "agent.connect") {
         // The "launch it" action: for OpenClaw, bring the Gateway up first (its ACP bridge needs it),
         // then establish the ACP session so the user gets real feedback instead of a blind first msg.

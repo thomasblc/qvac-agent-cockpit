@@ -267,12 +267,38 @@ function renderGovernance(gov, opts) {
   if (opts.dockerAvailable) sb.textContent = `Docker detected. Sandbox mode: ${gov.sandboxMode}, workspace access: ${gov.workspaceAccess}. (Container isolation configurable next.)`;
   else sb.textContent = "Not available: OpenClaw's OS sandbox needs Docker, which was not detected. Governance falls back to the working folder + tool policy above.";
 }
+function renderSetup(st) {
+  const incomplete = !st.openclawInstalled || !st.providerReady;
+  $("set-setup-card").classList.toggle("hidden", !incomplete);
+  setDot("setup-oc-dot", st.openclawInstalled ? "up" : "down");
+  setDot("setup-prov-dot", st.providerReady ? "up" : "down");
+  $("setup-install").style.display = st.openclawInstalled ? "none" : "";
+  $("setup-provider").style.display = st.providerReady ? "none" : "";
+  $("setup-prov-label").textContent = st.providerReady ? `QVAC provider configured (${st.providerModel || ""})` : "QVAC provider not configured";
+}
+function setupLog(line) { const el = $("setup-log"); el.classList.remove("hidden"); el.textContent = (el.textContent + line + "\n").split("\n").slice(-200).join("\n"); el.scrollTop = el.scrollHeight; }
+onFrame("setup.log", (m) => setupLog(m.line));
 async function openSettings() {
   const r = await rpc("settings.get", {});
   if (!r.ok) return;
   const d = r.data;
   setConnected = !!d.agentAlive;
-  $("set-install-hint").textContent = d.installed ? "" : "OpenClaw was not detected - install it first (npm i -g openclaw @qvac/openclaw-plugin @qvac/cli @qvac/sdk).";
+  $("set-install-hint").textContent = d.installed ? "" : "OpenClaw was not detected - use Setup below to install it.";
+  // setup status + actions
+  const st0 = await rpc("setup.status", {});
+  if (st0.ok) renderSetup(st0.data);
+  $("setup-install").onclick = async () => {
+    const b = $("setup-install"); b.disabled = true; setupLog("starting install...");
+    const rr = await rpc("setup.install", {});
+    b.disabled = false;
+    if (rr.data?.status) renderSetup(rr.data.status);
+  };
+  $("setup-provider").onclick = async () => {
+    const b = $("setup-provider"); b.disabled = true; setupLog("configuring provider...");
+    const rr = await rpc("setup.provider", {});
+    b.disabled = false;
+    if (rr.data?.status) renderSetup(rr.data.status);
+  };
   renderGateway(d.gateway);
   renderConn();
   // Connect: the one "launch it" action. Starts the OpenClaw gateway for you, then opens the session.

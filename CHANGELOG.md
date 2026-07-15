@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.0 (2026-07-14) - Setup wizard (install + provider, no CLI)
+- New **Setup** card that gets OpenClaw running from scratch without a terminal: it detects what's missing and offers **Install OpenClaw** (npm i -g openclaw + @qvac packages, streamed live) and **Set up QVAC provider** (installs/enables the @qvac/openclaw-plugin, writes the provider config, selects the model - the exact sequence, streamed). The card hides itself once everything is ready.
+- With one-click pairing (2.1) this means: install -> set up provider -> connect -> pair, all from the cockpit UI, no CLI.
+- Note: model weights still download on first use of a model via the serve (no standalone progress bar yet - the QVAC CLI has no model-pull command).
+
 ## 2.1.1 (2026-07-14) - pairing fix-pack + WS origin gate
 - Fix (P1): `run()` truncated command stdout to 600 chars, which corrupted the JSON that device pairing parses (`devices list --json`), so pairing silently approved nothing. Full stdout is now kept.
 - Fix (P1): device pairing now approves ONLY the ACP bridge's own pending request (displayName "ACP"), not every pending request - closes a confused-deputy path where a foreign device pending at the same instant could be auto-approved.

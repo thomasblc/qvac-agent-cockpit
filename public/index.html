@@ -93,6 +93,13 @@
     <section id="pane-skills" class="pane"><div id="skills-grid"></div></section>
     <section id="pane-settings" class="pane">
       <div id="settings-wrap">
+        <div class="set-card hidden" id="set-setup-card">
+          <h3>SETUP</h3>
+          <p class="set-hint">Get OpenClaw running from scratch, no terminal. Steps light up as they complete.</p>
+          <div class="set-row"><span id="setup-oc-dot" class="set-dot"></span><span id="setup-oc-label">OpenClaw installed</span><button id="setup-install" class="ghost">Install OpenClaw</button></div>
+          <div class="set-row"><span id="setup-prov-dot" class="set-dot"></span><span id="setup-prov-label">QVAC provider configured</span><button id="setup-provider">Set up QVAC provider</button></div>
+          <pre id="setup-log" class="hidden"></pre>
+        </div>
         <div class="set-card">
           <h3>AGENT &middot; OPENCLAW</h3>
           <p class="set-hint">The cockpit drives OpenClaw on a local QVAC model. Connect starts the Gateway and opens the session for you. <span id="set-install-hint"></span></p>

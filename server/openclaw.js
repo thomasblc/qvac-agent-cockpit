@@ -104,6 +104,70 @@ export function pendingScope(errOrHint = "") {
   return /scope upgrade pending|pairing-required|operator\.admin|pending approval|paired with admin scope|admin scope for the acp|openclaw onboard/i.test(String(errOrHint));
 }
 
+// ---- first-run setup: install OpenClaw + wire the QVAC provider, all from the UI (no CLI) ----
+import { spawn } from "node:child_process";
+
+// Which prerequisites are satisfied. Drives the Setup card (show install / provider buttons).
+export async function setupStatus() {
+  const oc = installed();
+  let pluginEnabled = false, providerModel = null;
+  if (oc) {
+    const pl = await run(["plugins", "list"], 12000);
+    pluginEnabled = /\bqvac\b[^\n]*\benabled\b/i.test(pl.out);
+    providerModel = getPath("agents.defaults.model.primary") || null;
+  }
+  return { openclawInstalled: oc, pluginEnabled, providerModel, providerReady: pluginEnabled && !!providerModel };
+}
+
+// Stream a spawned command's output line-by-line to onLine; resolve {code}. Used for the long npm
+// install + the provider-setup sequence so the UI shows live progress.
+function stream(cmd, args, onLine, { timeoutMs = 600000, env } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const child = spawn(cmd, args, { env: { ...process.env, ...env } });
+    const t = setTimeout(() => { if (!done) { try { child.kill(); } catch { /* */ } onLine("[timed out]"); resolve({ code: 124 }); done = true; } }, timeoutMs);
+    const feed = (buf) => { for (const line of String(buf).split("\n")) if (line.trim()) onLine(line.slice(0, 300)); };
+    child.stdout?.on("data", feed); child.stderr?.on("data", feed);
+    child.on("error", (e) => { if (!done) { onLine("[error] " + e.message); clearTimeout(t); resolve({ code: 1 }); done = true; } });
+    child.on("exit", (code) => { if (!done) { clearTimeout(t); resolve({ code: code ?? 0 }); done = true; } });
+  });
+}
+
+// Install OpenClaw + the QVAC plugin/CLI/SDK globally via npm, streaming progress.
+export async function installOpenClaw(onLine) {
+  onLine("Installing OpenClaw + QVAC packages via npm (this can take a few minutes)...");
+  const r = await stream("npm", ["install", "-g", "openclaw", "@qvac/openclaw-plugin", "@qvac/cli", "@qvac/sdk"], onLine, { timeoutMs: 600000 });
+  onLine(r.code === 0 ? "npm install finished." : `npm install exited with code ${r.code}.`);
+  return r;
+}
+
+// Wire the QVAC provider into OpenClaw (the exact sequence proven to work), streaming each step.
+// Idempotent: safe to re-run. Model defaults to qwen3.5-9b.
+export async function setupProvider(onLine, { model = "qwen3.5-9b", port = 11434 } = {}) {
+  const qvacBin = which("qvac") || "qvac";
+  const steps = [
+    ["plugins", "install", "@qvac/openclaw-plugin", "--force"],
+    ["plugins", "enable", "qvac"],
+    ["config", "set", "plugins.allow", '["qvac"]', "--strict-json"],
+    ["config", "set", "plugins.entries.qvac.config", JSON.stringify({ model, qvacCommand: qvacBin, port }), "--strict-json"],
+    ["models", "set", `qvac/${model}`],
+  ];
+  for (const args of steps) {
+    onLine("$ openclaw " + args.filter((a) => a !== "--strict-json").join(" "));
+    const r = await stream(OC, args, onLine, { timeoutMs: 60000 });
+    if (r.code !== 0) { onLine(`(step exited ${r.code}; continuing)`); }
+  }
+  const st = await setupStatus();
+  onLine(st.providerReady ? "QVAC provider is configured." : "provider setup ran, but the provider is not fully ready yet.");
+  return st;
+}
+function which(bin) {
+  for (const dir of ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", join(H, ".local/bin")]) {
+    const p = join(dir, bin); if (existsSync(p)) return p;
+  }
+  return null;
+}
+
 // Is Docker available? OpenClaw's OS-level sandbox (workspaceAccess ro/rw isolation) is Docker-based,
 // so the cockpit only offers it when Docker is present; otherwise governance = workspace + tool policy.
 export function dockerAvailable() {

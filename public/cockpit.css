@@ -234,3 +234,6 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 "Geist
 .set-field select { width: 100%; }
 #gov-workspace { flex:1; background: var(--elevated); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 12px var(--mono); padding: 7px 10px; }
 #gov-state { margin-top: 10px; }
+
+/* setup card log */
+#setup-log { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 10px; font: 11px var(--mono); color: var(--mut); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
