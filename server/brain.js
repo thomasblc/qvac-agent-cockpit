@@ -2,15 +2,42 @@
 // graph build (links + tags + semantic edges), and RAG link proposals (cosine candidates ->
 // the local serve judges -> the hardened inserter writes the link).
 import { loadModel, embed, EMBEDDINGGEMMA_300M_Q4_0 } from "@qvac/sdk";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, realpathSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, basename, relative } from "node:path";
+import { join, basename, relative, dirname, resolve, isAbsolute } from "node:path";
 import { ContextIndex } from "./context.js";
 import { cosine, topKPairs } from "./text-utils.js";
 
 // ---- corpus roots (existence-checked; .md only; cap per plan) ----
 const H = homedir();
+
+// User-chosen Second Brain / Files folder ("vault"), persisted in the cockpit config. When set, the
+// corpus IS that folder (recursively, like Obsidian/Second Self) instead of the harness's own dirs.
+// The default corpus is Hermes-specific (~/.hermes/*), which is why it did not follow the harness;
+// pointing this at any folder (e.g. ~/.openclaw/workspace, or your notes vault) overrides that.
+const CFG = join(H, ".qvac-cockpit", "config.json");
+function expandHome(p) { const s = String(p || "").trim(); if (!s) return ""; return s.startsWith("~") ? join(H, s.slice(1)) : (isAbsolute(s) ? s : resolve(s)); }
+function loadCfg() { try { return JSON.parse(readFileSync(CFG, "utf8")); } catch { return {}; } }
+let brainRoot = (() => { const p = loadCfg().brainRoot; return p && existsSync(p) ? p : null; })();
+export function getBrainRoot() { return brainRoot; }
+export function setBrainRoot(p) {
+  if (p) {
+    const abs = expandHome(p);
+    if (!existsSync(abs) || !statSync(abs).isDirectory()) throw new Error("not a folder: " + abs);
+    brainRoot = abs;
+  } else brainRoot = null;
+  const cfg = loadCfg(); cfg.brainRoot = brainRoot;
+  mkdirSync(dirname(CFG), { recursive: true }); writeFileSync(CFG, JSON.stringify(cfg, null, 2));
+  return brainRoot;
+}
+
 export function corpusRoots(workspace) {
+  // A chosen vault takes over entirely (+ the agent's own workspace, so its writes still show).
+  if (brainRoot) {
+    const roots = [{ root: brainRoot, tag: "vault" }];
+    if (workspace && resolve(workspace) !== resolve(brainRoot)) roots.push({ root: workspace, tag: "workspace" });
+    return roots.filter((r) => existsSync(r.root));
+  }
   const roots = [
     { root: H + "/.hermes", only: ["SOUL.md"] },
     { root: H + "/.hermes/memories" },

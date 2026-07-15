@@ -1,6 +1,6 @@
 {
   "name": "qvac-agent-cockpit",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A styled, gamified, voice-native HUD that plugs onto an AI agent harness you already run (Hermes, OpenClaw), on local QVAC models.",
   "main": "server/server.js",
   "scripts": {

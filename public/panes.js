@@ -311,6 +311,21 @@ async function openSettings() {
     sel.disabled = false;
     $("set-model-state").textContent = rr.ok ? `serve: ${rr.data.serveState} (${rr.data.model})` : "failed: " + rr.error;
   };
+  // second brain folder
+  const inp = $("set-brain-root");
+  inp.value = d.brainRoot || "";
+  $("set-brain-state").textContent = d.brainRoot ? `indexing: ${d.brainRoot}` : `indexing the default (${d.brainDefault})`;
+  const applyRoot = async (path) => {
+    $("set-brain-state").textContent = "applying...";
+    const rr = await rpc("brain.setRoot", { path });
+    if (!rr.ok) { $("set-brain-state").textContent = "failed: " + rr.error; return; }
+    inp.value = rr.data.brainRoot || "";
+    $("set-brain-state").textContent = rr.data.brainRoot ? `set to ${rr.data.brainRoot} - open Second Brain and click Index corpus` : `reset to the default (${d.brainDefault})`;
+    graphData = null; // force a rebuild next time Second Brain opens
+  };
+  $("set-brain-save").onclick = () => applyRoot(inp.value.trim());
+  $("set-brain-reset").onclick = () => applyRoot("");
+  inp.onkeydown = (e) => { if (e.key === "Enter") applyRoot(inp.value.trim()); };
 }
 // live pushes keep the panel fresh if it is open
 onFrame("gatewayState", (m) => { if ($("pane-settings").classList.contains("active")) renderGateway(m); });

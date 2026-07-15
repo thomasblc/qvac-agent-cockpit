@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.0 (2026-07-14)
+- **Second Brain folder is now choosable** (Settings). The Second Brain + Files panes were hardcoded to the Hermes corpus (~/.hermes) + workspace, so they showed Hermes notes even when connected to OpenClaw. Set an absolute path (a vault, ~/.openclaw/workspace, anything) and both panes index that folder recursively, Obsidian/Second-Self style. Reset returns to the default. Persisted in ~/.qvac-cockpit/config.json; the corpus path jail still applies to the chosen root.
+
 ## 1.4.0 (2026-07-14)
 - **Fix (critical): the cockpit killed itself on model switch.** ServeManager/_kill reclaimed the serve port with a bare `lsof -ti tcp:PORT` (no `-sTCP:LISTEN`), which also matched the cockpit's own keep-alive client sockets to the serve, so switching the model killed the cockpit process -> "OFFLINE / connection lost", nothing worked. Now filters `-sTCP:LISTEN` (both serve + gateway managers) so only the listener is reaped. Also aligned to absolute `/usr/sbin/lsof`.
 - **Settings UX rebuilt around one action.** Pick Hermes/OpenClaw (instant active state), then a single **Connect** button opens the session with real feedback (connecting -> connected / actionable error). For OpenClaw the Gateway is started for you by Connect; its card only shows when OpenClaw is selected. Model switch shows restart progress and no longer drops the connection.

@@ -19,7 +19,7 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as hermesHistory from "./history.js";
 import { readBoard, KanbanWatcher, kanbanAvailable } from "./kanban.js";
-import { indexCorpus, buildGraph, scanLinks, acceptLink, readCorpusDoc } from "./brain.js";
+import { indexCorpus, buildGraph, scanLinks, acceptLink, readCorpusDoc, getBrainRoot, setBrainRoot } from "./brain.js";
 import { listFiles, readFileById, writeFileById, markReviewed, revertToReviewed, counters, bump } from "./files.js";
 import { jobsWithSummaries, tickerAlive, cronAction } from "./cron.js";
 import { listSkills as hermesListSkills } from "./skills.js";
@@ -317,7 +317,11 @@ wss.on("connection", (ws) => {
           model: serve.model, models: MODEL_CHOICES, serveState: serve.state,
           gateway: gateway.status(), gatewayNeeded: harness === "openclaw",
           agentAlive: !!acp?.alive,
+          brainRoot: getBrainRoot(), brainDefault: "Hermes corpus (~/.hermes) + workspace",
         });
+      } else if (msg.type === "brain.setRoot") {
+        try { const root = setBrainRoot(msg.path || null); broadcast({ type: "brainRootChanged", brainRoot: root }); reply(true, { brainRoot: root }); }
+        catch (e) { reply(false, null, String(e?.message || e).slice(0, 200)); }
       } else if (msg.type === "harness.set") {
         if (!HARNESS_CMD[msg.harness]) return reply(false, null, "unknown harness");
         if (msg.harness !== harness) {

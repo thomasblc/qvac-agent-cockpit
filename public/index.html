@@ -114,6 +114,12 @@
           <p class="set-hint">The QVAC model behind the serve. Switching restarts the serve automatically (up to a minute). Smaller = faster.</p>
           <div class="set-row"><select id="set-model"></select><span id="set-model-state" class="set-hint"></span></div>
         </div>
+        <div class="set-card">
+          <h3>SECOND BRAIN FOLDER</h3>
+          <p class="set-hint">Which folder the Second Brain + Files panes index. Leave empty for the default (the harness's own notes). Set an absolute path to point at any vault (e.g. <code>~/Documents/my-vault</code> or <code>~/.openclaw/workspace</code>). After changing it, open Second Brain and click Index corpus.</p>
+          <div class="set-row"><input id="set-brain-root" type="text" placeholder="default: Hermes corpus + workspace" spellcheck="false"><button id="set-brain-save">Set</button><button id="set-brain-reset" class="ghost">Reset</button></div>
+          <div id="set-brain-state" class="set-hint"></div>
+        </div>
       </div>
     </section>
     <section id="pane-other" class="pane"><div class="placeholder">This pane lands in a later phase.</div></section>
